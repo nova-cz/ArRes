@@ -1,12 +1,13 @@
 import Boton from "@/components/Boton";
+import Comparativa from "@/components/Comparativa";
 import Caras from "@/components/Caras";
-import ChatMock from "@/components/ChatMock";
+import Flujo from "@/components/Flujo";
 import DashMock from "@/components/DashMock";
 import Photo from "@/components/Photo";
 import Plato from "@/components/Plato";
 import {
   Armchair, ArrowsClockwise, BellRinging, CalendarBlank, CalendarCheck, Cake, ChatCircleDots, Champagne, Check,
-  CheckCircle, Clock, ForkKnife, Minus, MoonStars, Phone, Plant, Plus, Shuffle, ShieldCheck, UsersThree, WhatsappLogo, X, XCircle,
+  CheckCircle, Clock, ForkKnife, MoonStars, Phone, Plant, Plus, Shuffle, ShieldCheck, UsersThree, WhatsappLogo, X, XCircle,
 } from "@phosphor-icons/react/dist/ssr";
 
 const d = "duotone" as const;
@@ -29,16 +30,6 @@ const pruebas = [
   { i: <ChatCircleDots weight={d} />, a: "8 de 10", b: "restauranteros en Puebla lo consideran urgente" },
   { i: <MoonStars weight={d} />, a: "Atención 24/7", b: "llamadas y WhatsApp, también de madrugada" },
   { i: <ShieldCheck weight={d} />, a: "Tu equipo aprueba", b: "cada reserva antes de confirmarse" },
-];
-
-type Celda = { ok: "si" | "no" | "mid"; t: string };
-const filas: [string, Celda, Celda, Celda][] = [
-  ["Atiende fuera de horario", { ok: "si", t: "Sí, 24/7" }, { ok: "mid", t: "Depende del turno" }, { ok: "si", t: "Sí" }],
-  ["Conoce las reglas de tu restaurante", { ok: "si", t: "Las configuras tú" }, { ok: "si", t: "Con capacitación" }, { ok: "no", t: "Respuestas genéricas" }],
-  ["Revisa disponibilidad real", { ok: "si", t: "Sí" }, { ok: "si", t: "Sí" }, { ok: "no", t: "Normalmente no" }],
-  ["Contesta llamadas y WhatsApp", { ok: "si", t: "Ambos" }, { ok: "mid", t: "Uno a la vez" }, { ok: "mid", t: "Solo chat" }],
-  ["Una persona aprueba cada reserva", { ok: "si", t: "Siempre" }, { ok: "mid", t: "No aplica" }, { ok: "no", t: "No" }],
-  ["Respuestas consistentes", { ok: "si", t: "Siempre las mismas reglas" }, { ok: "no", t: "Varían por persona" }, { ok: "no", t: "Varían sin control" }],
 ];
 
 const faqs = [
@@ -67,15 +58,6 @@ const Blobs = ({ a = "bg-naranja/40", b = "bg-rojo/40" }: { a?: string; b?: stri
     <div aria-hidden className={`blob -left-20 -top-20 h-80 w-80 ${a}`} />
     <div aria-hidden className={`blob -bottom-24 right-0 h-96 w-96 ${b}`} />
   </>
-);
-
-const Estado = ({ c }: { c: Celda }) => (
-  <span className="flex items-center gap-2">
-    {c.ok === "si" && <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#4E9A3E] text-white"><Check size={12} weight="bold" /></span>}
-    {c.ok === "mid" && <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-dorado/90 text-vino"><Minus size={12} weight="bold" /></span>}
-    {c.ok === "no" && <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-rojo text-white"><X size={12} weight="bold" /></span>}
-    {c.t}
-  </span>
 );
 
 export default function Page() {
@@ -114,17 +96,12 @@ export default function Page() {
             </div>
 
             <div className="relative">
-              <div className="mb-4 flex justify-center gap-2 text-xs font-bold" aria-hidden>
-                {["Pregunta", "Revisa", "Aprueba"].map((x, i) => (
-                  <span key={x} className={`rounded-full px-4 py-2 ${i === 2 ? "bg-naranja text-ink" : "glass-dark"}`}>{x}</span>
-                ))}
-              </div>
-              <ChatMock />
+              <Flujo />
               <div className="glass-dark flota absolute -left-24 top-44 hidden items-center gap-3 rounded-2xl p-3 pr-5 xl:flex" aria-hidden>
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#4E9A3E] text-white"><CalendarCheck size={22} weight={d} /></span>
                 <span className="text-xs leading-tight"><b className="block text-sm">Mesa para 4</b>Hoy 19:30 · Terraza</span>
               </div>
-              <div className="glass-dark flota absolute -right-8 -bottom-4 hidden items-center gap-3 rounded-2xl p-3 pr-5 [animation-delay:-3s] xl:flex" aria-hidden>
+              <div className="glass-dark flota absolute -right-10 -bottom-14 hidden items-center gap-3 rounded-2xl p-3 pr-5 [animation-delay:-3s] xl:flex" aria-hidden>
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-naranja text-ink"><BellRinging size={22} weight={d} /></span>
                 <span className="text-xs leading-tight"><b className="block text-sm">Por aprobar</b>Tu equipo decide</span>
               </div>
@@ -247,28 +224,7 @@ export default function Page() {
           <Blobs />
           <div className="relative mx-auto max-w-7xl px-5 py-20 sm:px-10 lg:py-28">
             <Titulo claro className="max-w-3xl">ArRES frente a las alternativas</Titulo>
-            <div className="glass-dark mt-12 overflow-x-auto rounded-3xl p-3 sm:p-5">
-              <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm">
-                <thead>
-                  <tr className="text-crema/70">
-                    <th className="w-1/4 pb-4"><span className="sr-only">Característica</span></th>
-                    <th className="rounded-t-2xl bg-gradient-to-b from-rojo to-[#9E1217] px-5 py-4 font-serif text-xl text-crema">ArRES</th>
-                    <th className="px-5 pb-4 font-bold">Contratar personal</th>
-                    <th className="px-5 pb-4 font-bold">Chatbot genérico</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filas.map(([a, b, c, e], i) => (
-                    <tr key={a}>
-                      <th scope="row" className="border-t border-white/10 py-4 pr-4 font-semibold">{a}</th>
-                      <td className={`border-t border-white/15 bg-gradient-to-b from-[#9E1217] to-[#9E1217] px-5 py-4 font-bold ${i === filas.length - 1 ? "rounded-b-2xl" : ""}`}><Estado c={b} /></td>
-                      <td className="border-t border-white/10 px-5 py-4 text-crema/80"><Estado c={c} /></td>
-                      <td className="border-t border-white/10 px-5 py-4 text-crema/80"><Estado c={e} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Comparativa />
           </div>
         </section>
 
