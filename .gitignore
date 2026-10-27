@@ -1,0 +1,10 @@
+node_modules
+.next
+next-env.d.ts
+.DS_Store
+*.tsbuildinfo
+.env*
+.vercel
+# material de trabajo (no es parte de la app)
+imgs/
+*.pdf
