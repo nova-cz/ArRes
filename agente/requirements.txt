@@ -3,5 +3,6 @@ pipecat-ai[cartesia,deepgram,google,openai,runner,silero,webrtc,websocket]>=1.15
 fastapi>=0.115
 uvicorn[standard]>=0.32
 httpx>=0.27
+certifi
 openai>=1.50
 python-dotenv>=1.0

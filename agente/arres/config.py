@@ -11,6 +11,15 @@ from .almacen import Almacen, AlmacenMemoria, AlmacenSupabase
 
 load_dotenv()
 
+# En Mac, el Python de python.org no trae certificados SSL y falla al conectar con
+# Deepgram, Gemini, etc. ("CERTIFICATE_VERIFY_FAILED"). Se usan los de certifi.
+try:
+    import certifi
+
+    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+except ImportError:
+    pass
+
 GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
