@@ -270,10 +270,13 @@ async def _reservas_del_cliente(ctx: Contexto, nombre: str, telefono: str) -> li
 
 
 def _sin_datos(nombre: str, telefono: str) -> dict | None:
-    if not nombre.strip() or not telefono:
-        return {"encontrada": False,
-                "siguiente_paso": "Pide el nombre con el que se hizo la reserva y el teléfono "
-                                  "a 10 dígitos, y vuelve a intentar."}
+    # Falta un dato: todavía no se buscó nada, así que no hay que decir "no encontré".
+    faltan = [d for d, v in (("nombre", nombre.strip()), ("teléfono a 10 dígitos", telefono))
+              if not v]
+    if faltan:
+        return {"falta_dato": " y ".join(faltan),
+                "siguiente_paso": f"Todavía no busques ni digas que no encontraste nada: pide "
+                                  f"{' y '.join(faltan)} y vuelve a intentar."}
     return None
 
 
@@ -286,11 +289,13 @@ async def buscar_mis_reservas(ctx: Contexto, nombre: str, telefono: str = "") ->
         # No se dice si el teléfono existe: así nadie averigua reservas ajenas.
         return {"encontrada": False,
                 "mensaje": "No encontré reservas próximas con ese nombre y teléfono."}
+    como_decirlo = {CONFIRMADA: "confirmada", PENDIENTE: "por confirmar; el equipo te llama",
+                    ESCALADA: "en revisión con el equipo"}
     return {"encontrada": True, "reservas": [{
         "reserva_id": r.id,
         "cuando": fecha_legible(r.inicio.astimezone(ctx.tz)),
         "personas": r.personas,
-        "estado": r.estado,
+        "estado": como_decirlo.get(r.estado, r.estado),
     } for r in reservas], "nota": "No digas el reserva_id en voz alta."}
 
 

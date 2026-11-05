@@ -36,6 +36,7 @@ async def test_consulta_sus_reservas():
     await reservar(almacen)
     r = await herramientas.ejecutar(contexto(almacen), "buscar_mis_reservas", {"nombre": "Miguel"})
     assert r["encontrada"] and r["reservas"][0]["cuando"] == "sábado 7 de noviembre a las 8 pm"
+    assert r["reservas"][0]["estado"] == "confirmada"
 
 
 async def test_no_revela_reservas_ajenas():
@@ -118,3 +119,11 @@ async def test_cambio_de_quien_falta_lo_revisa_el_equipo():
         "reserva_id": reserva_id, "nombre": "Miguel", "personas": 2,
         "confirmado_por_cliente": True})
     assert r["estado"] == PENDIENTE and "te llama" in r["que_decir"]
+
+
+async def test_sin_telefono_pide_el_dato_sin_decir_que_no_encontro():
+    almacen = AlmacenMemoria.con_demo()
+    await reservar(almacen)
+    sin_tel = contexto(almacen, telefono="")
+    r = await herramientas.ejecutar(sin_tel, "buscar_mis_reservas", {"nombre": "Miguel"})
+    assert r["falta_dato"] == "teléfono a 10 dígitos" and "encontrada" not in r
