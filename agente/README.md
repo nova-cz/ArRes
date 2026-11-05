@@ -91,8 +91,12 @@ nunca en el panel web ni en GitHub.
   suscríbete y las nuevas aparecen solas.
 - **Aprobar / rechazar:** `update reservas set estado = 'confirmada'` (o `'rechazada'`).
   Nada más. El aviso al cliente lo manda el agente.
-- **Estados:** `pendiente` (cumple las reglas, falta aprobar), `escalada` (necesita a una
-  persona; el porqué está en `motivo_escalada`), `confirmada`, `rechazada`, `cancelada`.
+- **Estados:** `confirmada` (el agente la confirmó en la llamada), `pendiente` (la decide
+  el equipo; el porqué, si lo hay, está en `motivo_escalada`), `escalada` (grupo grande,
+  queja o caso especial), `rechazada`, `cancelada`, `llego` y `no_llego`.
+- **Llegó / No llegó:** pasada la `reglas.tolerancia_min`, el panel debe preguntar si el
+  cliente llegó. Marcar `no_llego` libera la mesa y cuenta como falta para ese teléfono;
+  con `reglas.max_faltas` faltas, sus reservas ya no se confirman solas.
 - **Alerta:** si una `pendiente` o `escalada` lleva más de `reglas.minutos_alerta` desde
   `creado_en`, márcala en rojo.
 - **Reglas editables:** tabla `reglas` (horario, cupo, máximo por grupo, anticipación,
