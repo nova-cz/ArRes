@@ -10,7 +10,9 @@ Correr en local (desde la carpeta agente/):
 
 from __future__ import annotations
 
+import asyncio
 import sys
+import time
 from pathlib import Path
 
 import httpx
@@ -24,6 +26,7 @@ from pipecat.audio.vad.silero import SileroVADAnalyzer  # noqa: E402
 from pipecat.frames.frames import (  # noqa: E402
     EndWorkerFrame,
     FunctionCallResultProperties,
+    LLMRunFrame,
     TTSSpeakFrame,
 )
 from pipecat.pipeline.pipeline import Pipeline  # noqa: E402
@@ -175,6 +178,30 @@ async def run_bot(
     worker = PipelineWorker(pipeline, params=params)
     runner = WorkerRunner(handle_sigint=runner_args.handle_sigint)
     await runner.add_workers(worker)
+
+    # Gemini gratis a veces responde 503 (saturado) o 429 (límite por minuto). En vez de
+    # quedarse callado, se reintenta y, si sigue fallando, se le avisa al cliente.
+    fallas = {"cuenta": 0, "ultima": 0.0}
+
+    @worker.event_handler("on_pipeline_error")
+    async def on_pipeline_error(worker, frame):
+        texto = str(frame.error)
+        if frame.processor is not llm or not any(
+            c in texto for c in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED")
+        ):
+            return
+        if time.monotonic() - fallas["ultima"] > 30:
+            fallas["cuenta"] = 0
+        fallas["cuenta"] += 1
+        fallas["ultima"] = time.monotonic()
+        if fallas["cuenta"] <= 2:
+            logger.warning(f"La IA no respondió ({texto[:40]}…); reintento {fallas['cuenta']}")
+            await asyncio.sleep(2 * fallas["cuenta"])
+            await worker.queue_frames([LLMRunFrame()])
+        else:
+            await worker.queue_frames([TTSSpeakFrame(
+                "Perdón, tengo problemas de conexión. ¿Me lo repites en un momento?"
+            )])
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
