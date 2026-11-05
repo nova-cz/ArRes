@@ -32,7 +32,7 @@ class IAFalsa:
 
 @pytest.fixture(autouse=True)
 def entorno_limpio(monkeypatch):
-    for nombre in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "WHATSAPP_TOKEN",
+    for nombre in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY", "WHATSAPP_TOKEN",
                    "WHATSAPP_APP_SECRET", "RESTAURANTE_ID"):
         monkeypatch.setenv(nombre, "")
     config.almacen.cache_clear()

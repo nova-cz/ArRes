@@ -185,14 +185,13 @@ class AlmacenSupabase:
     """Habla con la API REST de Supabase usando la llave de servicio (solo en el servidor)."""
 
     def __init__(self, url: str, llave_servicio: str) -> None:
+        headers = {"apikey": llave_servicio, "Content-Type": "application/json"}
+        # Las llaves viejas (service_role) son JWT y van también como Bearer.
+        # Las nuevas (sb_secret_...) no son JWT: solo van en "apikey".
+        if not llave_servicio.startswith("sb_"):
+            headers["Authorization"] = f"Bearer {llave_servicio}"
         self._http = httpx.AsyncClient(
-            base_url=url.rstrip("/") + "/rest/v1",
-            headers={
-                "apikey": llave_servicio,
-                "Authorization": f"Bearer {llave_servicio}",
-                "Content-Type": "application/json",
-            },
-            timeout=10,
+            base_url=url.rstrip("/") + "/rest/v1", headers=headers, timeout=10
         )
 
     async def _uno(self, tabla: str, params: dict) -> dict | None:

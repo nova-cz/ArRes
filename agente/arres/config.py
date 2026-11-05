@@ -30,7 +30,8 @@ def env(nombre: str, defecto: str = "") -> str:
 @lru_cache
 def almacen() -> Almacen:
     """Supabase si hay credenciales; si no, la memoria con el restaurante demo."""
-    url, llave = env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY")
+    url = env("SUPABASE_URL")
+    llave = env("SUPABASE_SECRET_KEY") or env("SUPABASE_SERVICE_ROLE_KEY")
     if url and llave:
         return AlmacenSupabase(url, llave)
     return AlmacenMemoria.con_demo()
