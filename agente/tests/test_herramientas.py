@@ -29,8 +29,17 @@ def test_fecha_legible():
     assert fecha_legible(datetime(2026, 11, 6, 13, 0)) == "viernes 6 de noviembre a las 1 pm"
 
 
+async def test_se_confirma_en_la_misma_llamada():
+    ctx = contexto()
+    r = await herramientas.ejecutar(ctx, "crear_reserva", {
+        "nombre": "Ana", "personas": 4, "fecha": "2026-11-06", "hora": "21:00",
+        "confirmado_por_cliente": True})
+    assert r["estado"] == CONFIRMADA and "confirmada" in r["que_decir"]
+
+
 async def test_reserva_queda_pendiente_en_modo_supervisado():
     ctx = contexto()
+    (await ctx.almacen.reglas("demo")).auto_aprobar_hasta = 0
     r = await herramientas.ejecutar(ctx, "crear_reserva", {
         "nombre": "Ana", "personas": 4, "fecha": "2026-11-06", "hora": "21:00",
         "confirmado_por_cliente": True})

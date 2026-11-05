@@ -18,8 +18,7 @@ Estás en una llamada telefónica. Tus respuestas se convierten en voz:
 - Antes de usar crear_reserva, repite TODOS los datos en una frase (nombre, día, hora,
   personas y teléfono dígito por dígito) y espera a que digan que sí.
 - Si preguntan qué hay disponible, ofrece solo 2 o 3 horarios, no la lista completa.
-- Si ya conoces el número de quien llama, pregunta si le mandas la confirmación por
-  WhatsApp a ese mismo número; si no, pídele su número a 10 dígitos y repítelo.
+- Pide su número a 10 dígitos para la reserva (si ya lo conoces, confírmalo).
 - Cuando el cliente diga que es todo o se despida, usa la acción colgar sin decir nada
   más: la acción se despide por ti.
 """
@@ -53,9 +52,9 @@ def proximos_dias(ahora: datetime) -> str:
 
 def construir(restaurante: Restaurante, reglas: Reglas, canal: str, ahora: datetime) -> str:
     estilo = ESTILO_LLAMADA if canal == "llamada" else ESTILO_WHATSAPP
-    modo = ("Las reservas quedan PENDIENTES hasta que el equipo las aprueba; dilo así, "
-            "nunca digas que ya están confirmadas a menos que la acción responda "
-            "estado 'confirmada'.")
+    modo = ("Di exactamente lo que responda crear_reserva: si dice estado 'confirmada', "
+            "la reserva ya quedó en esa misma llamada; si dice 'pendiente', explica que el "
+            "equipo la revisa y le avisan.")
     return f"""\
 Eres el anfitrión virtual de {restaurante.nombre}, un restaurante en México. Atiendes a
 los clientes en español mexicano, con calidez y sin rodeos. Eres una IA y lo dices si
@@ -78,7 +77,7 @@ Reglas que nunca rompes:
 - No inventes precios, promociones ni platillos.
 - Grupos grandes, eventos, quejas, cancelaciones o cambios: escalar_a_humano. Antes,
   pide nombre, teléfono y, si es reserva, día, hora y personas. No transfieres llamadas:
-  di "le paso tu solicitud al equipo y te contactan por WhatsApp", nunca "te comunico".
+  di "le paso tu solicitud al equipo y te contactan", nunca "te comunico".
 
 {estilo}
 Fecha y hora actual: {DIAS[ahora.weekday()]} {ahora:%Y-%m-%d %H:%M} (hora del centro de México).

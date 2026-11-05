@@ -174,16 +174,17 @@ async def crear_reserva(
     ))
     ctx.creadas.append(reserva.id)
     if estado == CONFIRMADA:
-        # Se aprobó sola (regla auto_aprobar_hasta): el WhatsApp sale de inmediato.
+        # Se confirmó en la llamada (regla auto_aprobar_hasta). Si hay WhatsApp
+        # configurado, además se manda el comprobante; si no, no pasa nada.
         try:
             await notificaciones.avisar_cambio(ctx.almacen, reserva)
         except Exception:  # la reserva ya quedó; un fallo de WhatsApp no la deshace
             log.exception("No se pudo mandar la confirmación de %s", reserva.id)
-        que_decir = (f"La reserva quedó confirmada para el {fecha_legible(inicio)}. "
-                     "Le llega la confirmación por WhatsApp.")
+        que_decir = (f"¡Listo! Tu reserva quedó confirmada para el {fecha_legible(inicio)}, "
+                     f"{personas} personas, a nombre de {nombre.strip()}. Te esperamos.")
     else:
         que_decir = (f"La solicitud para el {fecha_legible(inicio)} quedó registrada y apartada. "
-                     "El equipo la confirma en unos minutos y le llega un WhatsApp al "
+                     "El equipo la confirma en unos minutos y te avisa al "
                      f"número que termina en {telefono[-4:]}.")
     return {"registrada": True, "estado": estado, "reserva_id": reserva.id, "que_decir": que_decir}
 
@@ -218,8 +219,8 @@ async def escalar_a_humano(
     return {
         "registrada": True,
         "estado": ESCALADA,
-        "que_decir": "Listo, ya le pasé tu solicitud al equipo; te contactan por WhatsApp "
-                     f"al número que termina en {telefono[-4:]} en cuanto la revisen.",
+        "que_decir": "Listo, ya le pasé tu solicitud al equipo; te contactan al número "
+                     f"que termina en {telefono[-4:]} en cuanto la revisen.",
     }
 
 

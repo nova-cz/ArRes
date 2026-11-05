@@ -34,8 +34,9 @@ create table if not exists reglas (
   max_personas int not null default 8 check (max_personas > 0),
   anticipacion_min int not null default 60 check (anticipacion_min >= 0),
   dias_max_adelanto int not null default 30 check (dias_max_adelanto > 0),
-  -- 0 = modo supervisado: todo espera aprobación. 4 = grupos de hasta 4 se confirman solos.
-  auto_aprobar_hasta int not null default 0 check (auto_aprobar_hasta >= 0),
+  -- Reservas de hasta este número de personas se confirman en la misma llamada.
+  -- 0 = modo supervisado: todo espera a que el equipo apruebe.
+  auto_aprobar_hasta int not null default 8 check (auto_aprobar_hasta >= 0),
   -- El panel marca en rojo lo que lleve más de estos minutos sin aprobar.
   minutos_alerta int not null default 10 check (minutos_alerta > 0),
   actualizado_en timestamptz not null default now()

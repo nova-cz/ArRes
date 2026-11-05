@@ -13,6 +13,7 @@ AHORA = datetime(2026, 11, 4, 12, 0, tzinfo=ZoneInfo("America/Mexico_City"))
 
 async def test_conversacion_completa_por_whatsapp():
     almacen = AlmacenMemoria.con_demo()
+    almacen._reglas["demo"].auto_aprobar_hasta = 0  # modo supervisado
     ctx = Contexto(almacen, almacen.restaurantes["demo"], "whatsapp", "+522221234567",
                    reloj=lambda: AHORA)
     ia = IAFalsa([

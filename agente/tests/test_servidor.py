@@ -30,6 +30,7 @@ def test_flujo_de_la_demo_chat_aprobar_y_confirmar(cliente, monkeypatch):
         "Listo, quedó registrada.",
     ])
     monkeypatch.setattr(cerebro, "cliente_llm", lambda: (ia, "falso"))
+    config.almacen()._reglas["demo"].auto_aprobar_hasta = 0  # modo supervisado
 
     r = cliente.post("/prueba/chat", json={"telefono": "2221234567", "texto": "Mesa para 2"})
     assert r.json()["respuesta"] == "Listo, quedó registrada."

@@ -30,8 +30,9 @@ class Reglas:
     max_personas: int = 8  # más que esto es "grupo grande": lo decide una persona
     anticipacion_min: int = 60  # minutos mínimos entre ahora y la reserva
     dias_max_adelanto: int = 30
-    # 0 = modo supervisado puro. Si es 4, grupos de hasta 4 se confirman solos.
-    auto_aprobar_hasta: int = 0
+    # Reservas de hasta este número de personas se confirman en la misma llamada.
+    # 0 = todo espera a que el equipo apruebe (modo supervisado).
+    auto_aprobar_hasta: int = 8
     minutos_alerta: int = 10  # el panel marca en rojo si nadie aprueba en este tiempo
 
 
