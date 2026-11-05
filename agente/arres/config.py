@@ -44,7 +44,7 @@ def llm() -> dict:
             "proveedor": "gemini",
             "api_key": env("GEMINI_API_KEY"),
             "base_url": GEMINI_OPENAI_URL,
-            "modelo": env("LLM_MODELO", "gemini-2.5-flash"),
+            "modelo": env("LLM_MODELO", "gemini-2.5-flash-lite"),
         }
     return {
         "proveedor": "openai",

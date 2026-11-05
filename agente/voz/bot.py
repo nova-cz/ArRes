@@ -173,9 +173,8 @@ async def run_bot(
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
-        saludo = SALUDO.format(nombre=ctx.restaurante.nombre)
-        context.add_message({"role": "assistant", "content": saludo})
-        await worker.queue_frames([TTSSpeakFrame(saludo)])
+        # El saludo entra solo al historial al decirse (no se agrega a mano: quedaba doble).
+        await worker.queue_frames([TTSSpeakFrame(SALUDO.format(nombre=ctx.restaurante.nombre))])
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):

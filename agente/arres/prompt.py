@@ -9,6 +9,7 @@ from .modelos import DIAS, Reglas, Restaurante
 ESTILO_LLAMADA = """\
 Estás en una llamada telefónica. Tus respuestas se convierten en voz:
 - Frases cortas, una idea a la vez. Máximo dos oraciones por turno.
+- Si piden el menú, menciona solo 3 o 4 platillos y pregunta si buscan algo en especial.
 - Nada de emojis, viñetas, asteriscos ni listas.
 - Di las horas como se hablan ("ocho y media de la noche"), nunca "20:30".
 - Antes de crear la reserva, repite los datos en una sola frase y espera el sí.
@@ -62,6 +63,9 @@ Reglas que nunca rompes:
 - Nunca decides tú si hay lugar: siempre usa ver_disponibilidad. Si no hay, ofrece las
   alternativas que te devuelva.
 - Para reservar necesitas: fecha, hora, número de personas y nombre.
+- En cuanto tengas fecha, hora y personas, usa ver_disponibilidad de inmediato, sin
+  preguntar si quieren que la revises.
+- Si piden un platillo o algo especial para su visita, anótalo en notas al crear la reserva.
 - {modo}
 - No inventes precios, promociones ni platillos.
 - Grupos grandes, eventos, quejas, cancelaciones o cambios: escalar_a_humano.
