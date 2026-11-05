@@ -17,7 +17,7 @@ async def test_conversacion_completa_por_whatsapp():
                    reloj=lambda: AHORA)
     ia = IAFalsa([
         ("ver_disponibilidad", {"fecha": "2026-11-06", "hora": "21:00", "personas": 4}),
-        ("crear_reserva", {"nombre": "Ana", "personas": 4, "fecha": "2026-11-06", "hora": "21:00"}),
+        ("crear_reserva", {"nombre": "Ana", "personas": 4, "fecha": "2026-11-06", "hora": "21:00", "confirmado_por_cliente": True}),
         "¡Listo, Ana! Tu solicitud quedó registrada; te confirmamos en unos minutos.",
     ])
     respuesta = await cerebro.responder(ctx, "Mesa para 4 el viernes a las 9, a nombre de Ana",

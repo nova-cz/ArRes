@@ -32,7 +32,8 @@ def test_fecha_legible():
 async def test_reserva_queda_pendiente_en_modo_supervisado():
     ctx = contexto()
     r = await herramientas.ejecutar(ctx, "crear_reserva", {
-        "nombre": "Ana", "personas": 4, "fecha": "2026-11-06", "hora": "21:00"})
+        "nombre": "Ana", "personas": 4, "fecha": "2026-11-06", "hora": "21:00",
+        "confirmado_por_cliente": True})
     assert r["registrada"] and r["estado"] == PENDIENTE
     assert "4567" in r["que_decir"]
     guardada = await ctx.almacen.reserva(r["reserva_id"])
@@ -41,7 +42,8 @@ async def test_reserva_queda_pendiente_en_modo_supervisado():
 
 async def test_no_duplica_si_la_ia_repite_la_accion():
     ctx = contexto()
-    datos = {"nombre": "Ana", "personas": 4, "fecha": "2026-11-06", "hora": "21:00"}
+    datos = {"nombre": "Ana", "personas": 4, "fecha": "2026-11-06", "hora": "21:00",
+        "confirmado_por_cliente": True}
     primera = await herramientas.ejecutar(ctx, "crear_reserva", datos)
     segunda = await herramientas.ejecutar(ctx, "crear_reserva", datos)
     assert primera["reserva_id"] == segunda["reserva_id"]
@@ -51,7 +53,8 @@ async def test_no_duplica_si_la_ia_repite_la_accion():
 async def test_pide_telefono_si_no_lo_conoce():
     ctx = contexto(telefono="")
     r = await herramientas.ejecutar(ctx, "crear_reserva", {
-        "nombre": "Ana", "personas": 2, "fecha": "2026-11-06", "hora": "21:00"})
+        "nombre": "Ana", "personas": 2, "fecha": "2026-11-06", "hora": "21:00",
+        "confirmado_por_cliente": True})
     assert "teléfono" in r["error"]
 
 
@@ -59,11 +62,13 @@ async def test_nunca_promete_la_misma_mesa_dos_veces():
     ctx = contexto()
     (await ctx.almacen.reglas("demo")).cupo_personas = 6
     a = await herramientas.ejecutar(ctx, "crear_reserva", {
-        "nombre": "Ana", "personas": 4, "fecha": "2026-11-06", "hora": "21:00"})
+        "nombre": "Ana", "personas": 4, "fecha": "2026-11-06", "hora": "21:00",
+        "confirmado_por_cliente": True})
     otro = contexto()
     otro.almacen = ctx.almacen  # otra llamada, misma base
     b = await herramientas.ejecutar(otro, "crear_reserva", {
-        "nombre": "Beto", "personas": 4, "fecha": "2026-11-06", "hora": "21:00"})
+        "nombre": "Beto", "personas": 4, "fecha": "2026-11-06", "hora": "21:00",
+        "confirmado_por_cliente": True})
     assert a["registrada"] and not b["registrada"]
     assert b["motivo"] == "sin_cupo" and b["alternativas"]
 
@@ -72,7 +77,8 @@ async def test_auto_aprobacion_confirma_y_avisa_por_whatsapp():
     ctx = contexto()
     (await ctx.almacen.reglas("demo")).auto_aprobar_hasta = 4
     r = await herramientas.ejecutar(ctx, "crear_reserva", {
-        "nombre": "Ana", "personas": 2, "fecha": "2026-11-06", "hora": "21:00"})
+        "nombre": "Ana", "personas": 2, "fecha": "2026-11-06", "hora": "21:00",
+        "confirmado_por_cliente": True})
     assert r["estado"] == CONFIRMADA
     mensajes = await ctx.almacen.mensajes("demo", "+522221234567", "whatsapp")
     assert "confirmada" in mensajes[-1]["texto"]
@@ -126,10 +132,19 @@ async def test_dia_lleno_salta_al_siguiente_y_avisa():
     (await ctx.almacen.reglas("demo")).cupo_personas = 4
     for hora in ("13:00", "14:30", "16:00", "17:30"):  # domingo lleno de 1 a 7 pm
         await herramientas.ejecutar(contexto_con(ctx), "crear_reserva", {
-            "nombre": "X", "personas": 4, "fecha": "2026-11-08", "hora": hora})
+            "nombre": "X", "personas": 4, "fecha": "2026-11-08", "hora": hora,
+            "confirmado_por_cliente": True})
     r = await herramientas.ejecutar(ctx, "buscar_horarios", {"personas": 2, "fecha": "2026-11-08"})
     assert r["dia"] == "martes 10 de noviembre" and "aviso" in r  # lunes cierra
 
 
 def contexto_con(ctx):
     return Contexto(ctx.almacen, ctx.restaurante, "llamada", "+522221234567", reloj=lambda: AHORA)
+
+
+async def test_no_registra_sin_confirmacion_del_cliente():
+    ctx = contexto()
+    r = await herramientas.ejecutar(ctx, "crear_reserva", {
+        "nombre": "Ana", "personas": 2, "fecha": "2026-11-06", "hora": "21:00"})
+    assert r["registrada"] is False and "repite" in r["siguiente_paso"]
+    assert ctx.almacen.reservas == {}

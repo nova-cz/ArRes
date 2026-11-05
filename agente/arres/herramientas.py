@@ -135,8 +135,13 @@ async def buscar_horarios(
 
 async def crear_reserva(
     ctx: Contexto, nombre: str, personas: int, fecha: str, hora: str,
-    telefono: str = "", notas: str = "",
+    telefono: str = "", notas: str = "", confirmado_por_cliente: bool = False,
 ) -> dict:
+    if not confirmado_por_cliente:
+        return {"registrada": False,
+                "siguiente_paso": "Antes de registrar, repite nombre, día, hora, personas y "
+                                  "teléfono en una frase, espera el sí y vuelve a usar "
+                                  "crear_reserva con confirmado_por_cliente=true."}
     telefono = normalizar_telefono(telefono or ctx.telefono)
     if not telefono:
         return {"error": "Falta el teléfono del cliente. Pídeselo para mandarle la confirmación."}
@@ -264,8 +269,12 @@ ESQUEMAS: list[dict[str, Any]] = [
                              "description": "Teléfono a 10 dígitos. Omítelo si ya se conoce."},
                 "notas": {"type": "string",
                           "description": "Peticiones especiales: silla para bebé, cumpleaños..."},
+                "confirmado_por_cliente": {
+                    "type": "boolean",
+                    "description": "true solo si ya le repetiste TODOS los datos al cliente y "
+                                   "dijo que sí."},
             },
-            "required": ["nombre", "personas", "fecha", "hora"],
+            "required": ["nombre", "personas", "fecha", "hora", "confirmado_por_cliente"],
         },
     },
     {

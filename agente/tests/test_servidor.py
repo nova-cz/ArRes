@@ -26,7 +26,7 @@ def test_flujo_de_la_demo_chat_aprobar_y_confirmar(cliente, monkeypatch):
     while dia.weekday() != 1:
         dia += timedelta(days=1)
     ia = IAFalsa([
-        ("crear_reserva", {"nombre": "Ana", "personas": 2, "fecha": dia.isoformat(), "hora": "14:00"}),
+        ("crear_reserva", {"nombre": "Ana", "personas": 2, "fecha": dia.isoformat(), "hora": "14:00", "confirmado_por_cliente": True}),
         "Listo, quedó registrada.",
     ])
     monkeypatch.setattr(cerebro, "cliente_llm", lambda: (ia, "falso"))
