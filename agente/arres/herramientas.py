@@ -1,0 +1,244 @@
+"""Acciones que puede usar el agente, iguales para llamadas y WhatsApp.
+
+Cada acción recibe argumentos que eligió la IA y devuelve un dict que la IA lee para
+contestar. Las reglas viven aquí, en código, no en el prompt.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable
+from zoneinfo import ZoneInfo
+
+from . import disponibilidad, notificaciones
+from .almacen import Almacen
+from .modelos import CONFIRMADA, ESCALADA, PENDIENTE, Reserva, Restaurante
+from .textos import fecha_legible, normalizar_telefono
+
+log = logging.getLogger("arres.herramientas")
+
+
+@dataclass
+class Contexto:
+    almacen: Almacen
+    restaurante: Restaurante
+    canal: str  # "llamada" o "whatsapp"
+    telefono: str = ""  # número del cliente si ya lo conocemos (identificador de llamada o WhatsApp)
+    reloj: Callable[[], datetime] = field(default=lambda: datetime.now(timezone.utc))
+    # Reservas creadas en esta conversación (para no duplicar si la IA repite la acción).
+    creadas: list[str] = field(default_factory=list)
+
+    @property
+    def tz(self) -> ZoneInfo:
+        return ZoneInfo(self.restaurante.zona_horaria)
+
+    def ahora(self) -> datetime:
+        return self.reloj().astimezone(self.tz)
+
+
+# ---------------------------------------------------------------------------
+# Utilidades
+# ---------------------------------------------------------------------------
+
+def _leer_momento(ctx: Contexto, fecha: str, hora: str) -> datetime:
+    try:
+        dia = datetime.strptime(fecha.strip(), "%Y-%m-%d").date()
+        h, m = (int(x) for x in hora.strip().split(":"))
+        return datetime(dia.year, dia.month, dia.day, h, m, tzinfo=ctx.tz)
+    except (ValueError, AttributeError) as error:
+        raise ValueError("Usa fecha AAAA-MM-DD y hora HH:MM en formato de 24 horas.") from error
+
+
+async def _revisar(ctx: Contexto, inicio: datetime, personas: int) -> disponibilidad.Revision:
+    reglas = await ctx.almacen.reglas(ctx.restaurante.id)
+    dia = inicio.replace(hour=0, minute=0)
+    # Se cargan reservas de una semana para poder buscar alternativas en días siguientes.
+    reservas = await ctx.almacen.reservas_entre(
+        ctx.restaurante.id, dia - timedelta(days=1), dia + timedelta(days=8)
+    )
+    return disponibilidad.revisar(reglas, reservas, inicio, personas, ctx.ahora())
+
+
+def _respuesta_revision(revision: disponibilidad.Revision) -> dict[str, Any]:
+    datos: dict[str, Any] = {
+        "disponible": revision.disponible,
+        "motivo": revision.motivo,
+        "mensaje": revision.mensaje,
+    }
+    if revision.alternativas:
+        datos["alternativas"] = [
+            {"fecha": a.strftime("%Y-%m-%d"), "hora": a.strftime("%H:%M"),
+             "como_decirlo": fecha_legible(a)}
+            for a in revision.alternativas
+        ]
+    if revision.motivo == "grupo_grande":
+        datos["siguiente_paso"] = "Usa escalar_a_humano con los datos del grupo."
+    return datos
+
+
+# ---------------------------------------------------------------------------
+# Acciones
+# ---------------------------------------------------------------------------
+
+async def ver_disponibilidad(ctx: Contexto, fecha: str, hora: str, personas: int) -> dict:
+    inicio = _leer_momento(ctx, fecha, hora)
+    revision = await _revisar(ctx, inicio, int(personas))
+    return {"solicitado": fecha_legible(inicio), **_respuesta_revision(revision)}
+
+
+async def crear_reserva(
+    ctx: Contexto, nombre: str, personas: int, fecha: str, hora: str,
+    telefono: str = "", notas: str = "",
+) -> dict:
+    telefono = normalizar_telefono(telefono or ctx.telefono)
+    if not telefono:
+        return {"error": "Falta el teléfono del cliente. Pídeselo para mandarle la confirmación."}
+    inicio = _leer_momento(ctx, fecha, hora)
+    personas = int(personas)
+
+    # Si la IA repite la acción con los mismos datos, no se duplica la reserva.
+    for reserva_id in ctx.creadas:
+        previa = await ctx.almacen.reserva(reserva_id)
+        if previa and previa.inicio == inicio and previa.personas == personas:
+            return {"estado": previa.estado, "reserva_id": previa.id, "nota": "Ya estaba registrada."}
+
+    # Se vuelve a revisar justo antes de guardar: pudo entrar otra reserva mientras hablaban.
+    revision = await _revisar(ctx, inicio, personas)
+    if not revision.disponible:
+        return {"registrada": False, **_respuesta_revision(revision)}
+
+    reglas = await ctx.almacen.reglas(ctx.restaurante.id)
+    estado = CONFIRMADA if personas <= reglas.auto_aprobar_hasta else PENDIENTE
+    reserva = await ctx.almacen.crear_reserva(Reserva(
+        restaurante_id=ctx.restaurante.id,
+        nombre=nombre.strip(),
+        telefono=telefono,
+        personas=personas,
+        inicio=inicio,
+        fin=inicio + timedelta(minutes=reglas.duracion_min),
+        estado=estado,
+        canal=ctx.canal,
+        notas=notas.strip(),
+    ))
+    ctx.creadas.append(reserva.id)
+    if estado == CONFIRMADA:
+        # Se aprobó sola (regla auto_aprobar_hasta): el WhatsApp sale de inmediato.
+        try:
+            await notificaciones.avisar_cambio(ctx.almacen, reserva)
+        except Exception:  # la reserva ya quedó; un fallo de WhatsApp no la deshace
+            log.exception("No se pudo mandar la confirmación de %s", reserva.id)
+        que_decir = (f"La reserva quedó confirmada para el {fecha_legible(inicio)}. "
+                     "Le llega la confirmación por WhatsApp.")
+    else:
+        que_decir = (f"La solicitud para el {fecha_legible(inicio)} quedó registrada y apartada. "
+                     "El equipo la confirma en unos minutos y le llega un WhatsApp al "
+                     f"número que termina en {telefono[-4:]}.")
+    return {"registrada": True, "estado": estado, "reserva_id": reserva.id, "que_decir": que_decir}
+
+
+async def escalar_a_humano(
+    ctx: Contexto, motivo: str, nombre: str = "", telefono: str = "",
+    personas: int = 0, fecha: str = "", hora: str = "",
+) -> dict:
+    telefono = normalizar_telefono(telefono or ctx.telefono)
+    inicio = fin = None
+    if fecha and hora:
+        inicio = _leer_momento(ctx, fecha, hora)
+        reglas = await ctx.almacen.reglas(ctx.restaurante.id)
+        fin = inicio + timedelta(minutes=reglas.duracion_min)
+    reserva = await ctx.almacen.crear_reserva(Reserva(
+        restaurante_id=ctx.restaurante.id,
+        nombre=(nombre or "Sin nombre").strip(),
+        telefono=telefono,
+        personas=int(personas or 0),
+        inicio=inicio,
+        fin=fin,
+        estado=ESCALADA,
+        canal=ctx.canal,
+        motivo_escalada=motivo.strip(),
+    ))
+    ctx.creadas.append(reserva.id)
+    return {
+        "registrada": True,
+        "estado": ESCALADA,
+        "que_decir": "Ya le pasé tu caso al equipo con todos los detalles; te contactan "
+                     "por WhatsApp o por teléfono en cuanto lo revisen.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Definición para la IA (formato JSON Schema, sirve para OpenAI, Gemini y Pipecat)
+# ---------------------------------------------------------------------------
+
+_FECHA = {"type": "string", "description": "Fecha en formato AAAA-MM-DD"}
+_HORA = {"type": "string", "description": "Hora de llegada en formato HH:MM de 24 horas"}
+_PERSONAS = {"type": "integer", "description": "Número de personas"}
+
+ESQUEMAS: list[dict[str, Any]] = [
+    {
+        "name": "ver_disponibilidad",
+        "description": "Revisa si hay lugar para cierta fecha, hora y número de personas. "
+                       "Úsala siempre antes de ofrecer o confirmar un horario.",
+        "parameters": {
+            "type": "object",
+            "properties": {"fecha": _FECHA, "hora": _HORA, "personas": _PERSONAS},
+            "required": ["fecha", "hora", "personas"],
+        },
+    },
+    {
+        "name": "crear_reserva",
+        "description": "Registra la reserva cuando el cliente ya confirmó fecha, hora, personas "
+                       "y nombre. Vuelve a revisar el cupo antes de guardarla.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "nombre": {"type": "string", "description": "Nombre de quien reserva"},
+                "personas": _PERSONAS,
+                "fecha": _FECHA,
+                "hora": _HORA,
+                "telefono": {"type": "string",
+                             "description": "Teléfono a 10 dígitos. Omítelo si ya se conoce."},
+                "notas": {"type": "string",
+                          "description": "Peticiones especiales: silla para bebé, cumpleaños..."},
+            },
+            "required": ["nombre", "personas", "fecha", "hora"],
+        },
+    },
+    {
+        "name": "escalar_a_humano",
+        "description": "Pasa el caso al equipo cuando no puedes resolverlo: grupos grandes, "
+                       "eventos, quejas, cancelaciones o cambios, o si el cliente pide hablar "
+                       "con una persona.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "motivo": {"type": "string", "description": "Qué necesita el cliente, en una frase"},
+                "nombre": {"type": "string"},
+                "telefono": {"type": "string"},
+                "personas": _PERSONAS,
+                "fecha": _FECHA,
+                "hora": _HORA,
+            },
+            "required": ["motivo"],
+        },
+    },
+]
+
+ACCIONES: dict[str, Callable[..., Any]] = {
+    "ver_disponibilidad": ver_disponibilidad,
+    "crear_reserva": crear_reserva,
+    "escalar_a_humano": escalar_a_humano,
+}
+
+
+async def ejecutar(ctx: Contexto, nombre: str, argumentos: dict[str, Any]) -> dict:
+    """Ejecuta una acción. Los errores se devuelven como texto para que la IA los explique."""
+    accion = ACCIONES.get(nombre)
+    if not accion:
+        return {"error": f"No existe la acción {nombre}."}
+    try:
+        return await accion(ctx, **argumentos)
+    except (ValueError, TypeError) as error:
+        return {"error": str(error)}

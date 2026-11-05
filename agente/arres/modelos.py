@@ -1,0 +1,63 @@
+"""Datos con los que trabaja el agente: restaurante, reglas y reservas."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+
+# Estados de una reserva. "pendiente" y "escalada" esperan a una persona del equipo.
+PENDIENTE = "pendiente"  # cumple las reglas; solo falta que alguien la apruebe
+ESCALADA = "escalada"  # necesita criterio humano (grupo grande, queja, petición especial)
+CONFIRMADA = "confirmada"
+RECHAZADA = "rechazada"
+CANCELADA = "cancelada"
+
+# Estas reservas ocupan lugar: así nunca se promete la misma mesa dos veces.
+ESTADOS_QUE_OCUPAN = (PENDIENTE, ESCALADA, CONFIRMADA)
+
+DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+
+@dataclass
+class Reglas:
+    """Reglas de la casa. El equipo las cambia desde el panel."""
+
+    # Horario por día de la semana (0 = lunes ... 6 = domingo): lista de turnos [abre, cierra].
+    horario: dict[int, list[tuple[str, str]]]
+    duracion_min: int = 90  # cuánto dura una mesa ocupada
+    intervalo_min: int = 30  # cada cuánto se ofrecen horarios (13:00, 13:30...)
+    cupo_personas: int = 60  # personas que pueden tener reserva al mismo tiempo
+    max_personas: int = 8  # más que esto es "grupo grande": lo decide una persona
+    anticipacion_min: int = 60  # minutos mínimos entre ahora y la reserva
+    dias_max_adelanto: int = 30
+    # 0 = modo supervisado puro. Si es 4, grupos de hasta 4 se confirman solos.
+    auto_aprobar_hasta: int = 0
+    minutos_alerta: int = 10  # el panel marca en rojo si nadie aprueba en este tiempo
+
+
+@dataclass
+class Restaurante:
+    id: str
+    nombre: str
+    zona_horaria: str = "America/Mexico_City"
+    direccion: str = ""
+    telefono_agente: str = ""  # número de Twilio al que se desvían las llamadas
+    whatsapp_phone_number_id: str = ""  # identificador del número en WhatsApp Cloud API
+    info: str = ""  # menú, estacionamiento, FAQs... texto libre que el agente puede citar
+
+
+@dataclass
+class Reserva:
+    restaurante_id: str
+    nombre: str
+    telefono: str
+    personas: int
+    inicio: datetime | None  # vacío solo en casos escalados que no son de una fecha concreta
+    fin: datetime | None
+    estado: str = PENDIENTE
+    canal: str = "llamada"
+    notas: str = ""
+    motivo_escalada: str = ""
+    id: str = ""
+    creado_en: datetime | None = None
+    extra: dict = field(default_factory=dict)
