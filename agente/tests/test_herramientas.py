@@ -6,7 +6,7 @@ import pytest
 from arres import herramientas
 from arres.almacen import AlmacenMemoria
 from arres.herramientas import Contexto
-from arres.modelos import CONFIRMADA, ESCALADA, PENDIENTE
+from arres.modelos import CONFIRMADA, ESCALADA, NO_LLEGO, PENDIENTE
 from arres.textos import fecha_legible, normalizar_telefono
 
 MX = ZoneInfo("America/Mexico_City")
@@ -164,3 +164,40 @@ async def test_no_escala_sin_nombre_ni_telefono():
     r = await herramientas.ejecutar(ctx, "escalar_a_humano", {"motivo": "Grupo de 15"})
     assert r["registrada"] is False and "teléfono" in r["siguiente_paso"]
     assert ctx.almacen.reservas == {}
+
+
+async def test_confirmacion_menciona_la_tolerancia():
+    r = await herramientas.ejecutar(contexto(), "crear_reserva", {
+        "nombre": "Ana", "personas": 2, "fecha": "2026-11-06", "hora": "21:00",
+        "confirmado_por_cliente": True})
+    assert "15 minutos de tolerancia" in r["que_decir"]
+
+
+async def test_no_llego_libera_la_mesa():
+    ctx = contexto()
+    (await ctx.almacen.reglas("demo")).cupo_personas = 4
+    datos = {"nombre": "Ana", "personas": 4, "fecha": "2026-11-06", "hora": "21:00",
+             "confirmado_por_cliente": True}
+    primera = await herramientas.ejecutar(ctx, "crear_reserva", datos)
+    lleno = await herramientas.ejecutar(ctx, "ver_disponibilidad",
+                                        {"fecha": "2026-11-06", "hora": "21:00", "personas": 2})
+    assert lleno["disponible"] is False
+    await ctx.almacen.cambiar_estado(primera["reserva_id"], NO_LLEGO)
+    libre = await herramientas.ejecutar(ctx, "ver_disponibilidad",
+                                        {"fecha": "2026-11-06", "hora": "21:00", "personas": 2})
+    assert libre["disponible"] is True
+
+
+async def test_quien_falta_seguido_ya_no_se_confirma_solo():
+    ctx = contexto()
+    for dia in ("2026-11-06", "2026-11-07"):
+        r = await herramientas.ejecutar(contexto_con(ctx), "crear_reserva", {
+            "nombre": "Ana", "personas": 2, "fecha": dia, "hora": "14:00",
+            "confirmado_por_cliente": True})
+        await ctx.almacen.cambiar_estado(r["reserva_id"], NO_LLEGO)
+    r = await herramientas.ejecutar(contexto_con(ctx), "crear_reserva", {
+        "nombre": "Ana", "personas": 2, "fecha": "2026-11-10", "hora": "14:00",
+        "confirmado_por_cliente": True})
+    assert r["estado"] == PENDIENTE and "faltaste" not in r["que_decir"]
+    guardada = await ctx.almacen.reserva(r["reserva_id"])
+    assert "2 inasistencias" in guardada.motivo_escalada

@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from . import cerebro, config, notificaciones, whatsapp
 from .herramientas import Contexto
-from .modelos import CONFIRMADA, RECHAZADA
+from .modelos import CONFIRMADA, LLEGO, NO_LLEGO, RECHAZADA
 from .textos import fecha_legible, normalizar_telefono
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
@@ -174,7 +174,7 @@ async def reservas_prueba() -> list[dict]:
 @app.post("/prueba/reservas/{reserva_id}")
 async def cambiar_estado_prueba(reserva_id: str, datos: EstadoPrueba) -> dict:
     _exigir_modo_prueba()
-    if datos.estado not in (CONFIRMADA, RECHAZADA):
+    if datos.estado not in (CONFIRMADA, RECHAZADA, LLEGO, NO_LLEGO):
         raise HTTPException(400, "Estado no válido")
     almacen = config.almacen()
     reserva = await almacen.cambiar_estado(reserva_id, datos.estado)

@@ -161,6 +161,12 @@ async def crear_reserva(
 
     reglas = await ctx.almacen.reglas(ctx.restaurante.id)
     estado = CONFIRMADA if personas <= reglas.auto_aprobar_hasta else PENDIENTE
+    # Quien ya faltó varias veces no se confirma solo: lo decide el equipo.
+    faltas = await ctx.almacen.contar_faltas(ctx.restaurante.id, telefono)
+    motivo = ""
+    if faltas >= reglas.max_faltas:
+        estado = PENDIENTE
+        motivo = f"El cliente tiene {faltas} inasistencias previas."
     reserva = await ctx.almacen.crear_reserva(Reserva(
         restaurante_id=ctx.restaurante.id,
         nombre=nombre.strip(),
@@ -171,6 +177,7 @@ async def crear_reserva(
         estado=estado,
         canal=ctx.canal,
         notas=notas.strip(),
+        motivo_escalada=motivo,
     ))
     ctx.creadas.append(reserva.id)
     if estado == CONFIRMADA:
@@ -181,7 +188,14 @@ async def crear_reserva(
         except Exception:  # la reserva ya quedó; un fallo de WhatsApp no la deshace
             log.exception("No se pudo mandar la confirmación de %s", reserva.id)
         que_decir = (f"¡Listo! Tu reserva quedó confirmada para el {fecha_legible(inicio)}, "
-                     f"{personas} personas, a nombre de {nombre.strip()}. Te esperamos.")
+                     f"{personas} personas, a nombre de {nombre.strip()}. Tienes "
+                     f"{reglas.tolerancia_min} minutos de tolerancia; después la mesa se "
+                     "libera. Te esperamos.")
+    elif motivo:
+        # No se le dice "faltaste": solo que esta reserva la confirma el equipo.
+        que_decir = (f"Tu solicitud para el {fecha_legible(inicio)} quedó apartada. Para "
+                     "este horario el equipo confirma la reserva y te avisa al número que "
+                     f"termina en {telefono[-4:]}.")
     else:
         que_decir = (f"La solicitud para el {fecha_legible(inicio)} quedó registrada y apartada. "
                      "El equipo la confirma en unos minutos y te avisa al "

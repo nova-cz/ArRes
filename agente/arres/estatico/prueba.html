@@ -31,6 +31,7 @@
   .estado { display:inline-block; padding:2px 9px; border-radius:20px; font-size:12px; font-weight:700; }
   .pendiente { background:#FFF1C2; } .escalada { background:#FFD9D9; color:var(--rojo); }
   .confirmada { background:#D7F5DC; } .rechazada { background:#eee; color:var(--gris); }
+  .llego { background:#CFE8FF; } .no_llego { background:#eee; color:var(--rojo); }
   .tarde { outline:2px solid var(--rojo); }
   .si { background:#1f8a3a; color:#fff; } .no { background:#eee; }
   .vacio { padding:24px; color:var(--gris); }
@@ -120,7 +121,10 @@ async function cargarReservas() {
       const tarde = ['pendiente','escalada'].includes(x.estado) && espera > ALERTA_MIN;
       const acciones = ['pendiente','escalada'].includes(x.estado)
         ? `<button class="si" onclick="decidir('${x.id}','confirmada')">Aprobar</button>
-           <button class="no" onclick="decidir('${x.id}','rechazada')">Rechazar</button>` : '';
+           <button class="no" onclick="decidir('${x.id}','rechazada')">Rechazar</button>`
+        : x.estado === 'confirmada'
+        ? `<button class="si" onclick="decidir('${x.id}','llego')">Llegó</button>
+           <button class="no" onclick="decidir('${x.id}','no_llego')">No llegó</button>` : '';
       const extra = [x.motivo && `Motivo: ${esc(x.motivo)}`, x.notas && `Notas: ${esc(x.notas)}`].filter(Boolean).join('<br>');
       return `<tr><td>${esc(x.nombre)}<br><small>${esc(x.telefono)} · ${esc(x.canal)}</small></td>
         <td>${esc(x.cuando)}${extra ? `<br><small>${extra}</small>` : ''}</td><td>${x.personas}</td>

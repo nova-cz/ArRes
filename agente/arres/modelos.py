@@ -11,9 +11,11 @@ ESCALADA = "escalada"  # necesita criterio humano (grupo grande, queja, petició
 CONFIRMADA = "confirmada"
 RECHAZADA = "rechazada"
 CANCELADA = "cancelada"
+LLEGO = "llego"  # el equipo marca que el cliente ya está en su mesa
+NO_LLEGO = "no_llego"  # pasó la tolerancia y no llegó: la mesa se libera
 
 # Estas reservas ocupan lugar: así nunca se promete la misma mesa dos veces.
-ESTADOS_QUE_OCUPAN = (PENDIENTE, ESCALADA, CONFIRMADA)
+ESTADOS_QUE_OCUPAN = (PENDIENTE, ESCALADA, CONFIRMADA, LLEGO)
 
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 
@@ -34,6 +36,8 @@ class Reglas:
     # 0 = todo espera a que el equipo apruebe (modo supervisado).
     auto_aprobar_hasta: int = 8
     minutos_alerta: int = 10  # el panel marca en rojo si nadie aprueba en este tiempo
+    tolerancia_min: int = 15  # minutos de espera; después el equipo puede marcar "no llegó"
+    max_faltas: int = 2  # con estas inasistencias, la reserva ya no se confirma sola
 
 
 @dataclass

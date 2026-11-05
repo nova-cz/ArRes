@@ -87,6 +87,7 @@ Próximos días:
 Horario de reservas:
 {horario_legible(reglas)}
 Grupos de más de {reglas.max_personas} personas los decide el equipo.
+Tolerancia: {reglas.tolerancia_min} minutos; después la mesa se libera.
 
 Información del restaurante:
 {restaurante.direccion}

@@ -12,7 +12,7 @@ from typing import Protocol
 
 import httpx
 
-from .modelos import Reglas, Reserva, Restaurante
+from .modelos import NO_LLEGO, Reglas, Reserva, Restaurante
 
 
 class Almacen(Protocol):
@@ -28,6 +28,7 @@ class Almacen(Protocol):
     async def crear_reserva(self, reserva: Reserva) -> Reserva: ...
     async def cambiar_estado(self, reserva_id: str, estado: str) -> Reserva | None: ...
     async def marcar_notificada(self, reserva_id: str) -> None: ...
+    async def contar_faltas(self, restaurante_id: str, telefono: str) -> int: ...
     async def guardar_mensaje(
         self, restaurante_id: str, telefono: str, canal: str, rol: str, texto: str
     ) -> None: ...
@@ -117,6 +118,11 @@ class AlmacenMemoria:
             reserva.estado = estado
         return reserva
 
+    async def contar_faltas(self, restaurante_id, telefono):
+        return sum(1 for r in self.reservas.values()
+                   if r.restaurante_id == restaurante_id and r.telefono == telefono
+                   and r.estado == NO_LLEGO)
+
     async def marcar_notificada(self, reserva_id):
         if reserva_id in self.reservas:
             self.reservas[reserva_id].extra["notificado_en"] = _ahora()
@@ -159,7 +165,8 @@ def _a_restaurante(fila: dict) -> Restaurante:
 def _a_reglas(fila: dict) -> Reglas:
     horario = {int(dia): [tuple(t) for t in turnos] for dia, turnos in fila["horario"].items()}
     campos = ("duracion_min", "intervalo_min", "cupo_personas", "max_personas",
-              "anticipacion_min", "dias_max_adelanto", "auto_aprobar_hasta", "minutos_alerta")
+              "anticipacion_min", "dias_max_adelanto", "auto_aprobar_hasta", "minutos_alerta",
+              "tolerancia_min", "max_faltas")
     return Reglas(horario=horario, **{c: fila[c] for c in campos if fila.get(c) is not None})
 
 
@@ -266,6 +273,15 @@ class AlmacenSupabase:
         respuesta.raise_for_status()
         filas = respuesta.json()
         return _a_reserva(filas[0]) if filas else None
+
+    async def contar_faltas(self, restaurante_id, telefono):
+        filas = await self._varios("reservas", {
+            "restaurante_id": f"eq.{restaurante_id}",
+            "telefono": f"eq.{telefono}",
+            "estado": f"eq.{NO_LLEGO}",
+            "select": "id",
+        })
+        return len(filas)
 
     async def marcar_notificada(self, reserva_id):
         respuesta = await self._http.patch(

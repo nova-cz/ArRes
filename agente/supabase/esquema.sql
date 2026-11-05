@@ -39,6 +39,10 @@ create table if not exists reglas (
   auto_aprobar_hasta int not null default 8 check (auto_aprobar_hasta >= 0),
   -- El panel marca en rojo lo que lleve más de estos minutos sin aprobar.
   minutos_alerta int not null default 10 check (minutos_alerta > 0),
+  -- Minutos que se espera al cliente; después el equipo puede marcar "no llegó".
+  tolerancia_min int not null default 15 check (tolerancia_min between 0 and 60),
+  -- Con estas inasistencias (estado no_llego), sus reservas ya no se confirman solas.
+  max_faltas int not null default 2 check (max_faltas > 0),
   actualizado_en timestamptz not null default now()
 );
 
@@ -51,7 +55,8 @@ create table if not exists reservas (
   inicio timestamptz,                          -- vacío solo en casos escalados sin fecha
   fin timestamptz,
   estado text not null default 'pendiente'
-    check (estado in ('pendiente', 'escalada', 'confirmada', 'rechazada', 'cancelada')),
+    check (estado in ('pendiente', 'escalada', 'confirmada', 'rechazada', 'cancelada',
+                      'llego', 'no_llego')),
   canal text not null default 'llamada' check (canal in ('llamada', 'whatsapp', 'web', 'panel')),
   notas text not null default '',
   motivo_escalada text not null default '',    -- por qué necesita a una persona
@@ -61,6 +66,7 @@ create table if not exists reservas (
 );
 create index if not exists reservas_por_fecha on reservas (restaurante_id, inicio);
 create index if not exists reservas_por_estado on reservas (restaurante_id, estado);
+create index if not exists reservas_por_telefono on reservas (restaurante_id, telefono, estado);
 
 create table if not exists mensajes (
   id bigint generated always as identity primary key,
