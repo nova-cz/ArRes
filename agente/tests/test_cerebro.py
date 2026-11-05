@@ -31,7 +31,8 @@ async def test_conversacion_completa_por_whatsapp():
     primer_turno = ia.recibido[0]
     assert "2026-11-06" in primer_turno["messages"][0]["content"]
     assert {t["function"]["name"] for t in primer_turno["tools"]} == {
-        "buscar_horarios", "ver_disponibilidad", "crear_reserva", "escalar_a_humano"}
+        "buscar_horarios", "ver_disponibilidad", "crear_reserva", "escalar_a_humano",
+        "buscar_mis_reservas", "cancelar_reserva", "cambiar_reserva"}
     # Ve lo que devolvió cada acción.
     assert '"disponible": true' in ia.recibido[1]["messages"][-1]["content"]
     # Queda el historial para el siguiente mensaje.

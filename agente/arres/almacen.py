@@ -29,6 +29,10 @@ class Almacen(Protocol):
     async def cambiar_estado(self, reserva_id: str, estado: str) -> Reserva | None: ...
     async def marcar_notificada(self, reserva_id: str) -> None: ...
     async def contar_faltas(self, restaurante_id: str, telefono: str) -> int: ...
+    async def reservas_de_telefono(
+        self, restaurante_id: str, telefono: str, desde: datetime
+    ) -> list[Reserva]: ...
+    async def actualizar_reserva(self, reserva_id: str, cambios: dict) -> Reserva | None: ...
     async def guardar_mensaje(
         self, restaurante_id: str, telefono: str, canal: str, rol: str, texto: str
     ) -> None: ...
@@ -116,6 +120,21 @@ class AlmacenMemoria:
         reserva = self.reservas.get(reserva_id)
         if reserva:
             reserva.estado = estado
+        return reserva
+
+    async def reservas_de_telefono(self, restaurante_id, telefono, desde):
+        return sorted(
+            (r for r in self.reservas.values()
+             if r.restaurante_id == restaurante_id and r.telefono == telefono
+             and r.inicio and r.inicio >= desde),
+            key=lambda r: r.inicio,
+        )
+
+    async def actualizar_reserva(self, reserva_id, cambios):
+        reserva = self.reservas.get(reserva_id)
+        if reserva:
+            for campo, valor in cambios.items():
+                setattr(reserva, campo, valor)
         return reserva
 
     async def contar_faltas(self, restaurante_id, telefono):
@@ -268,6 +287,25 @@ class AlmacenSupabase:
     async def cambiar_estado(self, reserva_id, estado):
         respuesta = await self._http.patch(
             "/reservas", params={"id": f"eq.{reserva_id}"}, json={"estado": estado},
+            headers={"Prefer": "return=representation"},
+        )
+        respuesta.raise_for_status()
+        filas = respuesta.json()
+        return _a_reserva(filas[0]) if filas else None
+
+    async def reservas_de_telefono(self, restaurante_id, telefono, desde):
+        filas = await self._varios("reservas", {
+            "restaurante_id": f"eq.{restaurante_id}",
+            "telefono": f"eq.{telefono}",
+            "inicio": f"gte.{desde.isoformat()}",
+            "order": "inicio.asc",
+        })
+        return [_a_reserva(f) for f in filas]
+
+    async def actualizar_reserva(self, reserva_id, cambios):
+        datos = {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in cambios.items()}
+        respuesta = await self._http.patch(
+            "/reservas", params={"id": f"eq.{reserva_id}"}, json=datos,
             headers={"Prefer": "return=representation"},
         )
         respuesta.raise_for_status()

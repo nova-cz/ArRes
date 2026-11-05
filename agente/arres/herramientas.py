@@ -7,6 +7,7 @@ contestar. Las reglas viven aquí, en código, no en el prompt.
 from __future__ import annotations
 
 import logging
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
@@ -14,7 +15,7 @@ from zoneinfo import ZoneInfo
 
 from . import disponibilidad, notificaciones
 from .almacen import Almacen
-from .modelos import CONFIRMADA, ESCALADA, PENDIENTE, Reserva, Restaurante
+from .modelos import CANCELADA, CONFIRMADA, ESCALADA, PENDIENTE, Reserva, Restaurante
 from .textos import dia_legible, fecha_legible, hora_legible, normalizar_telefono
 
 log = logging.getLogger("arres.herramientas")
@@ -59,9 +60,12 @@ async def _reservas_semana(ctx: Contexto, desde: datetime) -> list[Reserva]:
     )
 
 
-async def _revisar(ctx: Contexto, inicio: datetime, personas: int) -> disponibilidad.Revision:
+async def _revisar(
+    ctx: Contexto, inicio: datetime, personas: int, excluir: str = ""
+) -> disponibilidad.Revision:
     reglas = await ctx.almacen.reglas(ctx.restaurante.id)
-    reservas = await _reservas_semana(ctx, inicio)
+    # Al cambiar una reserva, su propio lugar no cuenta como ocupado.
+    reservas = [r for r in await _reservas_semana(ctx, inicio) if r.id != excluir]
     return disponibilidad.revisar(reglas, reservas, inicio, personas, ctx.ahora())
 
 
@@ -239,6 +243,140 @@ async def escalar_a_humano(
 
 
 # ---------------------------------------------------------------------------
+# Consultar, cancelar y cambiar reservas existentes
+# Seguridad: solo se ven y tocan reservas del teléfono del cliente y con su nombre.
+# ---------------------------------------------------------------------------
+
+ACTIVAS = (CONFIRMADA, PENDIENTE, ESCALADA)
+
+
+def _palabras(nombre: str) -> set[str]:
+    sin_acentos = unicodedata.normalize("NFKD", nombre.lower())
+    sin_acentos = "".join(c for c in sin_acentos if not unicodedata.combining(c))
+    return {p for p in sin_acentos.replace(".", " ").split() if len(p) >= 3}
+
+
+def nombre_coincide(dicho: str, registrado: str) -> bool:
+    """'Miguel' coincide con 'Miguel Ángel Cruz'; 'Sara' no."""
+    return bool(_palabras(dicho) & _palabras(registrado))
+
+
+async def _reservas_del_cliente(ctx: Contexto, nombre: str, telefono: str) -> list[Reserva]:
+    reglas = await ctx.almacen.reglas(ctx.restaurante.id)
+    # Se incluyen las de hace un rato, mientras siga corriendo la tolerancia.
+    desde = ctx.ahora() - timedelta(minutes=reglas.tolerancia_min)
+    reservas = await ctx.almacen.reservas_de_telefono(ctx.restaurante.id, telefono, desde)
+    return [r for r in reservas if r.estado in ACTIVAS and nombre_coincide(nombre, r.nombre)]
+
+
+def _sin_datos(nombre: str, telefono: str) -> dict | None:
+    if not nombre.strip() or not telefono:
+        return {"encontrada": False,
+                "siguiente_paso": "Pide el nombre con el que se hizo la reserva y el teléfono "
+                                  "a 10 dígitos, y vuelve a intentar."}
+    return None
+
+
+async def buscar_mis_reservas(ctx: Contexto, nombre: str, telefono: str = "") -> dict:
+    telefono = normalizar_telefono(telefono or ctx.telefono)
+    if falta := _sin_datos(nombre, telefono):
+        return falta
+    reservas = await _reservas_del_cliente(ctx, nombre, telefono)
+    if not reservas:
+        # No se dice si el teléfono existe: así nadie averigua reservas ajenas.
+        return {"encontrada": False,
+                "mensaje": "No encontré reservas próximas con ese nombre y teléfono."}
+    return {"encontrada": True, "reservas": [{
+        "reserva_id": r.id,
+        "cuando": fecha_legible(r.inicio.astimezone(ctx.tz)),
+        "personas": r.personas,
+        "estado": r.estado,
+    } for r in reservas], "nota": "No digas el reserva_id en voz alta."}
+
+
+async def _reserva_verificada(
+    ctx: Contexto, reserva_id: str, nombre: str, telefono: str
+) -> tuple[Reserva | None, dict | None]:
+    telefono = normalizar_telefono(telefono or ctx.telefono)
+    if falta := _sin_datos(nombre, telefono):
+        return None, falta
+    reserva = await ctx.almacen.reserva(reserva_id)
+    valida = (reserva and reserva.restaurante_id == ctx.restaurante.id
+              and reserva.telefono == telefono and nombre_coincide(nombre, reserva.nombre)
+              and reserva.estado in ACTIVAS and reserva.inicio)
+    if not valida:
+        return None, {"encontrada": False,
+                      "siguiente_paso": "Usa buscar_mis_reservas con el nombre y teléfono."}
+    if reserva.inicio <= ctx.ahora():
+        return None, {"encontrada": True, "mensaje": "Esa reserva ya empezó; no se puede "
+                      "modificar por teléfono.",
+                      "siguiente_paso": "Ofrece pasar el caso al equipo."}
+    return reserva, None
+
+
+async def cancelar_reserva(
+    ctx: Contexto, reserva_id: str, nombre: str, telefono: str = "",
+    confirmado_por_cliente: bool = False,
+) -> dict:
+    reserva, problema = await _reserva_verificada(ctx, reserva_id, nombre, telefono)
+    if problema:
+        return problema
+    cuando = fecha_legible(reserva.inicio.astimezone(ctx.tz))
+    if not confirmado_por_cliente:
+        return {"cancelada": False,
+                "siguiente_paso": f"Pregunta: ¿confirmas que cancelo tu reserva del {cuando}? "
+                                  "Si dice que sí, vuelve a usar cancelar_reserva con "
+                                  "confirmado_por_cliente=true."}
+    await ctx.almacen.cambiar_estado(reserva.id, CANCELADA)
+    return {"cancelada": True,
+            "que_decir": f"Listo, cancelé tu reserva del {cuando}. Gracias por avisarnos."}
+
+
+async def cambiar_reserva(
+    ctx: Contexto, reserva_id: str, nombre: str, fecha: str = "", hora: str = "",
+    personas: int = 0, telefono: str = "", confirmado_por_cliente: bool = False,
+) -> dict:
+    reserva, problema = await _reserva_verificada(ctx, reserva_id, nombre, telefono)
+    if problema:
+        return problema
+    actual = reserva.inicio.astimezone(ctx.tz)
+    inicio = _leer_momento(ctx, fecha or actual.strftime("%Y-%m-%d"),
+                           hora or actual.strftime("%H:%M"))
+    personas = int(personas) or reserva.personas
+    if inicio == reserva.inicio and personas == reserva.personas:
+        return {"cambiada": False, "mensaje": "Es igual a la reserva que ya tiene."}
+
+    revision = await _revisar(ctx, inicio, personas, excluir=reserva.id)
+    if not revision.disponible:
+        return {"cambiada": False, **_respuesta_revision(revision)}
+    if not confirmado_por_cliente:
+        return {"cambiada": False,
+                "siguiente_paso": f"Sí hay lugar. Pregunta: ¿cambio tu reserva al "
+                                  f"{fecha_legible(inicio)} para {personas} personas? Si dice "
+                                  "que sí, vuelve a usar cambiar_reserva con "
+                                  "confirmado_por_cliente=true."}
+
+    reglas = await ctx.almacen.reglas(ctx.restaurante.id)
+    faltas = await ctx.almacen.contar_faltas(ctx.restaurante.id, reserva.telefono)
+    sigue_sola = (reserva.estado == CONFIRMADA and personas <= reglas.auto_aprobar_hasta
+                  and faltas < reglas.max_faltas)
+    estado = CONFIRMADA if sigue_sola else PENDIENTE
+    cambios = {"inicio": inicio, "fin": inicio + timedelta(minutes=reglas.duracion_min),
+               "personas": personas, "estado": estado}
+    if estado == PENDIENTE:
+        cambios["motivo_escalada"] = (f"Cambio pedido por el cliente; antes: "
+                                      f"{fecha_legible(actual)}, {reserva.personas} personas.")
+    await ctx.almacen.actualizar_reserva(reserva.id, cambios)
+    if estado == CONFIRMADA:
+        que_decir = (f"¡Listo! Cambié tu reserva al {fecha_legible(inicio)}, {personas} "
+                     f"personas. Tienes {reglas.tolerancia_min} minutos de tolerancia.")
+    else:
+        que_decir = (f"Tu cambio al {fecha_legible(inicio)} quedó apartado. El equipo te llama "
+                     f"para confirmar al número que termina en {reserva.telefono[-4:]}.")
+    return {"cambiada": True, "estado": estado, "que_decir": que_decir}
+
+
+# ---------------------------------------------------------------------------
 # Definición para la IA (formato JSON Schema, sirve para OpenAI, Gemini y Pipecat)
 # ---------------------------------------------------------------------------
 
@@ -315,9 +453,64 @@ ESQUEMAS: list[dict[str, Any]] = [
             "required": ["motivo"],
         },
     },
+    {
+        "name": "buscar_mis_reservas",
+        "description": "Busca las reservas próximas del cliente para consultarlas, "
+                       "cancelarlas o cambiarlas. Necesita el nombre con el que reservó.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "nombre": {"type": "string", "description": "Nombre con el que reservó"},
+                "telefono": {"type": "string",
+                             "description": "Teléfono a 10 dígitos. Omítelo si ya se conoce."},
+            },
+            "required": ["nombre"],
+        },
+    },
+    {
+        "name": "cancelar_reserva",
+        "description": "Cancela una reserva encontrada con buscar_mis_reservas. Antes pregunta "
+                       "si confirma la cancelación.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reserva_id": {"type": "string", "description": "El reserva_id que devolvió "
+                                                                "buscar_mis_reservas"},
+                "nombre": {"type": "string"},
+                "telefono": {"type": "string"},
+                "confirmado_por_cliente": {"type": "boolean",
+                                           "description": "true solo si el cliente ya dijo que "
+                                                          "sí a cancelar."},
+            },
+            "required": ["reserva_id", "nombre", "confirmado_por_cliente"],
+        },
+    },
+    {
+        "name": "cambiar_reserva",
+        "description": "Cambia día, hora o personas de una reserva encontrada con "
+                       "buscar_mis_reservas. Revisa que haya lugar. Manda solo lo que cambia.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reserva_id": {"type": "string"},
+                "nombre": {"type": "string"},
+                "fecha": _FECHA,
+                "hora": _HORA,
+                "personas": _PERSONAS,
+                "telefono": {"type": "string"},
+                "confirmado_por_cliente": {"type": "boolean",
+                                           "description": "true solo si el cliente ya dijo que "
+                                                          "sí al cambio."},
+            },
+            "required": ["reserva_id", "nombre", "confirmado_por_cliente"],
+        },
+    },
 ]
 
 ACCIONES: dict[str, Callable[..., Any]] = {
+    "buscar_mis_reservas": buscar_mis_reservas,
+    "cancelar_reserva": cancelar_reserva,
+    "cambiar_reserva": cambiar_reserva,
     "buscar_horarios": buscar_horarios,
     "ver_disponibilidad": ver_disponibilidad,
     "crear_reserva": crear_reserva,
