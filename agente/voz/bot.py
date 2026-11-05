@@ -1,6 +1,6 @@
 """Agente de voz de ArRES (Pipecat).
 
-Oído: Deepgram · Cerebro: Gemini u OpenAI · Voz: Cartesia.
+Oído: Deepgram · Cerebro: Gemini u OpenAI · Voz: Deepgram (gratis con su crédito) o Cartesia.
 Usa las mismas acciones y reglas que WhatsApp (paquete `arres`).
 
 Correr en local (desde la carpeta agente/):
@@ -37,6 +37,7 @@ from pipecat.runner.types import RunnerArguments  # noqa: E402
 from pipecat.runner.utils import create_transport  # noqa: E402
 from pipecat.services.cartesia.tts import CartesiaTTSService  # noqa: E402
 from pipecat.services.deepgram.stt import DeepgramSTTService  # noqa: E402
+from pipecat.services.deepgram.tts import DeepgramTTSService  # noqa: E402
 from pipecat.services.llm_service import FunctionCallParams  # noqa: E402
 from pipecat.services.openai.llm import OpenAILLMService  # noqa: E402
 from pipecat.transcriptions.language import Language  # noqa: E402
@@ -86,6 +87,24 @@ def servicio_llm(instrucciones: str):
     )
 
 
+def servicio_voz():
+    """Deepgram (por defecto): usa la misma llave y crédito gratis que el oído.
+    Cartesia: voz más natural, pero su plan gratis se acaba rápido."""
+    if config.env("VOZ_PROVEEDOR", "deepgram") == "cartesia":
+        return CartesiaTTSService(
+            api_key=config.env("CARTESIA_API_KEY"),
+            settings=CartesiaTTSService.Settings(
+                voice=config.env("CARTESIA_VOICE_ID"), language=Language.ES
+            ),
+        )
+    return DeepgramTTSService(
+        api_key=config.env("DEEPGRAM_API_KEY"),
+        settings=DeepgramTTSService.Settings(
+            voice=config.env("DEEPGRAM_VOZ", "aura-2-celeste-es")
+        ),
+    )
+
+
 async def run_bot(
     transport: BaseTransport, runner_args: RunnerArguments, ctx: Contexto, es_telefono: bool
 ) -> None:
@@ -98,12 +117,7 @@ async def run_bot(
         api_key=config.env("DEEPGRAM_API_KEY"),
         settings=DeepgramSTTService.Settings(model="nova-3", language=Language.ES),
     )
-    tts = CartesiaTTSService(
-        api_key=config.env("CARTESIA_API_KEY"),
-        settings=CartesiaTTSService.Settings(
-            voice=config.env("CARTESIA_VOICE_ID"), language=Language.ES
-        ),
-    )
+    tts = servicio_voz()
     llm = servicio_llm(instrucciones)
 
     async def accion(params: FunctionCallParams) -> None:

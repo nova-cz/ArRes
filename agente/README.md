@@ -25,7 +25,7 @@ Cliente ◄── WhatsApp "✅ confirmada" ◄── /eventos/reserva ◄──
 | `arres/servidor.py` | Webhook de WhatsApp, aviso del panel y página de prueba. |
 | `arres/notificaciones.py` | Manda la confirmación o el rechazo por WhatsApp. |
 | `arres/almacen.py` | Lee y escribe en Supabase (o en memoria para probar). |
-| `voz/bot.py` | Agente de voz: Deepgram (oído) + Gemini/OpenAI (cerebro) + Cartesia (voz). |
+| `voz/bot.py` | Agente de voz: Deepgram (oído y voz) + Gemini/OpenAI (cerebro). Cartesia opcional. |
 | `supabase/esquema.sql` | Tablas, seguridad y restaurante demo. **Es el contrato con el panel web.** |
 
 ## 1. Probar en tu compu (sin pagar nada)
@@ -55,8 +55,10 @@ Así se ve en la presentación sin conectar nada de Meta.
 
 ### Llamada desde el navegador
 
-Agrega a `.env` las llaves de Deepgram (https://console.deepgram.com, trae crédito gratis)
-y Cartesia (https://play.cartesia.ai, plan gratis), y el ID de una voz en español.
+Agrega a `.env` tu llave de Deepgram (https://console.deepgram.com, trae crédito gratis
+sin tarjeta). Con esa misma llave el agente escucha y habla, así que la demo cuesta $0.
+Si quieren una voz más natural, cambien `VOZ_PROVEEDOR=cartesia` y agreguen la llave de
+Cartesia.
 
 ```bash
 python voz/bot.py
