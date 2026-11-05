@@ -193,6 +193,11 @@ async def escalar_a_humano(
     personas: int = 0, fecha: str = "", hora: str = "",
 ) -> dict:
     telefono = normalizar_telefono(telefono or ctx.telefono)
+    if not nombre.strip() or not telefono:
+        return {"registrada": False,
+                "siguiente_paso": "Antes de pasar el caso, pide nombre y teléfono a 10 dígitos "
+                                  "(y día, hora y personas si es una reserva), repítelos y "
+                                  "vuelve a usar escalar_a_humano."}
     inicio = fin = None
     if fecha and hora:
         inicio = _leer_momento(ctx, fecha, hora)
@@ -213,8 +218,8 @@ async def escalar_a_humano(
     return {
         "registrada": True,
         "estado": ESCALADA,
-        "que_decir": "Ya le pasé tu caso al equipo con todos los detalles; te contactan "
-                     "por WhatsApp o por teléfono en cuanto lo revisen.",
+        "que_decir": "Listo, ya le pasé tu solicitud al equipo; te contactan por WhatsApp "
+                     f"al número que termina en {telefono[-4:]} en cuanto la revisen.",
     }
 
 

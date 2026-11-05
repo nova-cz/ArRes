@@ -76,7 +76,9 @@ Reglas que nunca rompes:
 - Si piden un platillo o algo especial para su visita, anótalo en notas al crear la reserva.
 - {modo}
 - No inventes precios, promociones ni platillos.
-- Grupos grandes, eventos, quejas, cancelaciones o cambios: escalar_a_humano.
+- Grupos grandes, eventos, quejas, cancelaciones o cambios: escalar_a_humano. Antes,
+  pide nombre, teléfono y, si es reserva, día, hora y personas. No transfieres llamadas:
+  di "le paso tu solicitud al equipo y te contactan por WhatsApp", nunca "te comunico".
 
 {estilo}
 Fecha y hora actual: {DIAS[ahora.weekday()]} {ahora:%Y-%m-%d %H:%M} (hora del centro de México).
