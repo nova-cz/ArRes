@@ -190,9 +190,9 @@ class AlmacenSupabase:
         # Las nuevas (sb_secret_...) no son JWT: solo van en "apikey".
         if not llave_servicio.startswith("sb_"):
             headers["Authorization"] = f"Bearer {llave_servicio}"
-        self._http = httpx.AsyncClient(
-            base_url=url.rstrip("/") + "/rest/v1", headers=headers, timeout=10
-        )
+        # Acepta la URL del proyecto con o sin "/rest/v1" al final.
+        base = url.strip().rstrip("/").removesuffix("/rest/v1")
+        self._http = httpx.AsyncClient(base_url=base + "/rest/v1", headers=headers, timeout=10)
 
     async def _uno(self, tabla: str, params: dict) -> dict | None:
         filas = await self._varios(tabla, {**params, "limit": 1})
