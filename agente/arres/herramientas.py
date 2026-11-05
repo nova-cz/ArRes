@@ -194,11 +194,11 @@ async def crear_reserva(
     elif motivo:
         # No se le dice "faltaste": solo que esta reserva la confirma el equipo.
         que_decir = (f"Tu solicitud para el {fecha_legible(inicio)} quedó apartada. Para "
-                     "este horario el equipo confirma la reserva y te avisa al número que "
+                     "este horario el equipo te llama para confirmar al número que "
                      f"termina en {telefono[-4:]}.")
     else:
         que_decir = (f"La solicitud para el {fecha_legible(inicio)} quedó registrada y apartada. "
-                     "El equipo la confirma en unos minutos y te avisa al "
+                     "El equipo te llama para confirmar al "
                      f"número que termina en {telefono[-4:]}.")
     return {"registrada": True, "estado": estado, "reserva_id": reserva.id, "que_decir": que_decir}
 
@@ -233,7 +233,7 @@ async def escalar_a_humano(
     return {
         "registrada": True,
         "estado": ESCALADA,
-        "que_decir": "Listo, ya le pasé tu solicitud al equipo; te contactan al número "
+        "que_decir": "Listo, ya le pasé tu solicitud al equipo; te llaman al número "
                      f"que termina en {telefono[-4:]} en cuanto la revisen.",
     }
 

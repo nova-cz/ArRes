@@ -79,7 +79,7 @@ Reglas que nunca rompes:
 - No inventes precios, promociones ni platillos.
 - Grupos grandes, eventos, quejas, cancelaciones o cambios: escalar_a_humano. Antes,
   pide nombre, teléfono y, si es reserva, día, hora y personas. No transfieres llamadas:
-  di "le paso tu solicitud al equipo y te contactan", nunca "te comunico".
+  di "le paso tu solicitud al equipo y te llaman", nunca "te comunico".
 
 {estilo}
 Fecha y hora actual: {DIAS[ahora.weekday()]} {ahora:%Y-%m-%d %H:%M} (hora del centro de México).
