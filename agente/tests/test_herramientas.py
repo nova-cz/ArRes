@@ -97,3 +97,39 @@ async def test_grupo_grande_se_escala():
 async def test_formato_invalido_regresa_error_legible(args):
     r = await herramientas.ejecutar(contexto(), "ver_disponibilidad", args)
     assert "AAAA-MM-DD" in r["error"]
+
+
+async def test_buscar_horarios_de_un_dia():
+    r = await herramientas.ejecutar(contexto(), "buscar_horarios",
+                                    {"personas": 4, "fecha": "2026-11-07"})  # sábado
+    assert r["dia"] == "sábado 7 de noviembre"
+    assert r["primero"] == "1 pm" and r["ultimo"] == "9:30 pm"
+    assert len(r["horarios"]) == herramientas.MAX_HORARIOS
+
+
+async def test_lo_mas_pronto_desde_ahora():
+    # Miércoles 12:00 con 60 min de anticipación: lo primero es hoy a la 1 pm.
+    r = await herramientas.ejecutar(contexto(), "buscar_horarios", {"personas": 2})
+    assert r["dia"] == "miércoles 4 de noviembre" and r["primero"] == "1 pm"
+
+
+async def test_si_es_tarde_ofrece_el_dia_siguiente():
+    tarde = datetime(2026, 11, 7, 22, 30, tzinfo=MX)  # sábado ya cerrando
+    almacen = AlmacenMemoria.con_demo()
+    ctx = Contexto(almacen, almacen.restaurantes["demo"], "llamada", "", reloj=lambda: tarde)
+    r = await herramientas.ejecutar(ctx, "buscar_horarios", {"personas": 2})
+    assert r["dia"] == "domingo 8 de noviembre"
+
+
+async def test_dia_lleno_salta_al_siguiente_y_avisa():
+    ctx = contexto()
+    (await ctx.almacen.reglas("demo")).cupo_personas = 4
+    for hora in ("13:00", "14:30", "16:00", "17:30"):  # domingo lleno de 1 a 7 pm
+        await herramientas.ejecutar(contexto_con(ctx), "crear_reserva", {
+            "nombre": "X", "personas": 4, "fecha": "2026-11-08", "hora": hora})
+    r = await herramientas.ejecutar(ctx, "buscar_horarios", {"personas": 2, "fecha": "2026-11-08"})
+    assert r["dia"] == "martes 10 de noviembre" and "aviso" in r  # lunes cierra
+
+
+def contexto_con(ctx):
+    return Contexto(ctx.almacen, ctx.restaurante, "llamada", "+522221234567", reloj=lambda: AHORA)

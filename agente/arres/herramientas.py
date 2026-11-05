@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from . import disponibilidad, notificaciones
 from .almacen import Almacen
 from .modelos import CONFIRMADA, ESCALADA, PENDIENTE, Reserva, Restaurante
-from .textos import fecha_legible, normalizar_telefono
+from .textos import dia_legible, fecha_legible, hora_legible, normalizar_telefono
 
 log = logging.getLogger("arres.herramientas")
 
@@ -51,13 +51,17 @@ def _leer_momento(ctx: Contexto, fecha: str, hora: str) -> datetime:
         raise ValueError("Usa fecha AAAA-MM-DD y hora HH:MM en formato de 24 horas.") from error
 
 
-async def _revisar(ctx: Contexto, inicio: datetime, personas: int) -> disponibilidad.Revision:
-    reglas = await ctx.almacen.reglas(ctx.restaurante.id)
-    dia = inicio.replace(hour=0, minute=0)
-    # Se cargan reservas de una semana para poder buscar alternativas en días siguientes.
-    reservas = await ctx.almacen.reservas_entre(
+async def _reservas_semana(ctx: Contexto, desde: datetime) -> list[Reserva]:
+    # Una semana de reservas, para poder buscar alternativas en días siguientes.
+    dia = desde.replace(hour=0, minute=0, second=0, microsecond=0)
+    return await ctx.almacen.reservas_entre(
         ctx.restaurante.id, dia - timedelta(days=1), dia + timedelta(days=8)
     )
+
+
+async def _revisar(ctx: Contexto, inicio: datetime, personas: int) -> disponibilidad.Revision:
+    reglas = await ctx.almacen.reglas(ctx.restaurante.id)
+    reservas = await _reservas_semana(ctx, inicio)
     return disponibilidad.revisar(reglas, reservas, inicio, personas, ctx.ahora())
 
 
@@ -86,6 +90,47 @@ async def ver_disponibilidad(ctx: Contexto, fecha: str, hora: str, personas: int
     inicio = _leer_momento(ctx, fecha, hora)
     revision = await _revisar(ctx, inicio, int(personas))
     return {"solicitado": fecha_legible(inicio), **_respuesta_revision(revision)}
+
+
+MAX_HORARIOS = 8
+
+
+async def buscar_horarios(
+    ctx: Contexto, personas: int, fecha: str = "", desde_hora: str = ""
+) -> dict:
+    """Horarios libres de un día, o los más próximos si no dan fecha."""
+    personas = int(personas)
+    reglas = await ctx.almacen.reglas(ctx.restaurante.id)
+    if personas > reglas.max_personas:
+        return {"motivo": "grupo_grande",
+                "mensaje": f"Grupos de más de {reglas.max_personas} los revisa el equipo.",
+                "siguiente_paso": "Usa escalar_a_humano con los datos del grupo."}
+    ahora = ctx.ahora()
+    if fecha:
+        inicio = _leer_momento(ctx, fecha, desde_hora or "00:00")
+    else:
+        inicio = ahora
+    reservas = await _reservas_semana(ctx, inicio)
+    dia = inicio.date()
+    for intento in range(8):
+        libres = [h for h in disponibilidad.horarios_libres(
+            reglas, reservas, dia, ctx.tz, personas, ahora) if h >= inicio]
+        if libres:
+            datos = {
+                "dia": dia_legible(libres[0]),
+                "fecha": dia.isoformat(),
+                "horarios": [{"hora": h.strftime("%H:%M"), "como_decirlo": hora_legible(h)}
+                             for h in libres[:MAX_HORARIOS]],
+                "primero": hora_legible(libres[0]),
+                "ultimo": hora_legible(libres[-1]),
+            }
+            if fecha and intento:
+                datos["aviso"] = "Ese día ya no hay lugar; este es el siguiente día disponible."
+            return datos
+        dia += timedelta(days=1)
+        reservas = await _reservas_semana(ctx, datetime.combine(dia, datetime.min.time(), ctx.tz))
+    return {"mensaje": "No encontré lugar en los próximos días.",
+            "siguiente_paso": "Ofrece pasar el caso al equipo con escalar_a_humano."}
 
 
 async def crear_reserva(
@@ -178,6 +223,23 @@ _PERSONAS = {"type": "integer", "description": "Número de personas"}
 
 ESQUEMAS: list[dict[str, Any]] = [
     {
+        "name": "buscar_horarios",
+        "description": "Busca los horarios libres para cierto número de personas. Úsala cuando "
+                       "no dan una hora exacta: '¿hay lugar el sábado?', '¿qué es lo más pronto?', "
+                       "'¿todavía alcanzo hoy?'. Sin fecha busca desde ahora.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "personas": _PERSONAS,
+                "fecha": {"type": "string",
+                          "description": "Fecha AAAA-MM-DD. Omítela para buscar lo más pronto."},
+                "desde_hora": {"type": "string",
+                               "description": "HH:MM; solo si piden 'después de cierta hora'."},
+            },
+            "required": ["personas"],
+        },
+    },
+    {
         "name": "ver_disponibilidad",
         "description": "Revisa si hay lugar para cierta fecha, hora y número de personas. "
                        "Úsala siempre antes de ofrecer o confirmar un horario.",
@@ -227,6 +289,7 @@ ESQUEMAS: list[dict[str, Any]] = [
 ]
 
 ACCIONES: dict[str, Callable[..., Any]] = {
+    "buscar_horarios": buscar_horarios,
     "ver_disponibilidad": ver_disponibilidad,
     "crear_reserva": crear_reserva,
     "escalar_a_humano": escalar_a_humano,

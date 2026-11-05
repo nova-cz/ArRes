@@ -49,6 +49,8 @@ from arres import config, herramientas, prompt  # noqa: E402
 from arres.herramientas import Contexto  # noqa: E402
 from arres.textos import normalizar_telefono  # noqa: E402
 
+DESPEDIDA = "Con gusto. Gracias por llamar a {nombre}, ¡que tengas excelente día!"
+
 # Aviso obligatorio al inicio (LFPDPPP): es una IA y la llamada se graba.
 SALUDO = ("Hola, gracias por llamar a {nombre}. Soy su asistente virtual con inteligencia "
           "artificial; esta llamada se graba para gestionar tu reserva. ¿En qué te ayudo?")
@@ -129,6 +131,8 @@ async def run_bot(
         await params.result_callback(
             {"ok": True}, properties=FunctionCallResultProperties(run_llm=False)
         )
+        # La despedida la dice el código (la IA a veces colgaba sin decir nada).
+        await params.llm.push_frame(TTSSpeakFrame(DESPEDIDA.format(nombre=ctx.restaurante.nombre)))
         # Va detrás de la despedida en la fila, así que primero se escucha el "hasta luego".
         await params.llm.push_frame(EndWorkerFrame(reason="El cliente terminó"))
 
@@ -144,7 +148,8 @@ async def run_bot(
     ]
     esquemas.append(FunctionSchema(
         name="colgar",
-        description="Termina la llamada. Úsala solo después de despedirte.",
+        description="Se despide y termina la llamada. Úsala cuando el cliente ya no "
+        "necesite nada.",
         properties={},
         required=[],
         handler=colgar,

@@ -21,10 +21,18 @@ def normalizar_telefono(texto: str) -> str:
     return "+" + digitos if digitos else ""
 
 
-def fecha_legible(momento: datetime) -> str:
-    """'viernes 7 de noviembre a las 8:30 pm' (así lo dice bien la voz)."""
+def hora_legible(momento: datetime) -> str:
+    """'8:30 pm'."""
     hora = momento.hour % 12 or 12
     minutos = f":{momento.minute:02d}" if momento.minute else ""
-    sufijo = "am" if momento.hour < 12 else "pm"
-    return (f"{DIAS[momento.weekday()]} {momento.day} de {MESES[momento.month - 1]} "
-            f"a las {hora}{minutos} {sufijo}")
+    return f"{hora}{minutos} {'am' if momento.hour < 12 else 'pm'}"
+
+
+def dia_legible(momento: datetime) -> str:
+    """'viernes 7 de noviembre'."""
+    return f"{DIAS[momento.weekday()]} {momento.day} de {MESES[momento.month - 1]}"
+
+
+def fecha_legible(momento: datetime) -> str:
+    """'viernes 7 de noviembre a las 8:30 pm' (así lo dice bien la voz)."""
+    return f"{dia_legible(momento)} a las {hora_legible(momento)}"

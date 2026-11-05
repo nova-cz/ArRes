@@ -110,6 +110,16 @@ def _revisar_sin_alternativas(
     return Revision(True, "ok", "Hay lugar.")
 
 
+def horarios_libres(
+    reglas: Reglas, reservas: list[Reserva], dia: date, tz, personas: int, ahora: datetime
+) -> list[datetime]:
+    """Horas de llegada con lugar para `personas` ese día."""
+    return [
+        h for h in horarios_del_dia(reglas, dia, tz)
+        if _revisar_sin_alternativas(reglas, reservas, h, personas, ahora).disponible
+    ]
+
+
 def revisar(
     reglas: Reglas,
     reservas: list[Reserva],
