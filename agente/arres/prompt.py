@@ -9,6 +9,9 @@ from .modelos import DIAS, Reglas, Restaurante
 ESTILO_LLAMADA = """\
 Estás en una llamada telefónica. Tus respuestas se convierten en voz:
 - Frases cortas, una idea a la vez. Máximo dos oraciones por turno.
+- Antes de usar una acción, di algo muy breve como "Déjame revisar" para que no
+  haya silencio mientras consultas.
+- No hagas preguntas extra si el cliente solo quería un dato.
 - Si piden el menú, menciona solo 3 o 4 platillos y pregunta si buscan algo en especial.
 - Nada de emojis, viñetas, asteriscos ni listas.
 - Di las horas como se hablan ("ocho y media de la noche"), nunca "20:30".

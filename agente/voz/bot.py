@@ -22,6 +22,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # para importar
 
 from pipecat.adapters.llm.schemas.function_schema import FunctionSchema  # noqa: E402
 from pipecat.adapters.llm.schemas.tools_schema import ToolsSchema  # noqa: E402
+from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams  # noqa: E402
+from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import (  # noqa: E402
+    LocalSmartTurnAnalyzerV3,
+)
 from pipecat.audio.vad.silero import SileroVADAnalyzer  # noqa: E402
 from pipecat.frames.frames import (  # noqa: E402
     EndWorkerFrame,
@@ -46,6 +50,10 @@ from pipecat.services.openai.llm import OpenAILLMService  # noqa: E402
 from pipecat.transcriptions.language import Language  # noqa: E402
 from pipecat.transports.base_transport import BaseTransport, TransportParams  # noqa: E402
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams  # noqa: E402
+from pipecat.turns.user_stop.turn_analyzer_user_turn_stop_strategy import (  # noqa: E402
+    TurnAnalyzerUserTurnStopStrategy,
+)
+from pipecat.turns.user_turn_strategies import UserTurnStrategies  # noqa: E402
 from pipecat.workers.runner import WorkerRunner  # noqa: E402
 
 from arres import config, herramientas, prompt  # noqa: E402
@@ -158,8 +166,19 @@ async def run_bot(
         handler=colgar,
     ))
     context = LLMContext(tools=ToolsSchema(standard_tools=esquemas))
+    # Si el detector cree que la frase quedó a medias, espera como máximo ESPERA_TURNO
+    # segundos de silencio (Pipecat trae 3 s, que se siente lento al teléfono).
+    detector = LocalSmartTurnAnalyzerV3(
+        params=SmartTurnParams(stop_secs=float(config.env("ESPERA_TURNO", "1.5")))
+    )
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
-        context, user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer())
+        context,
+        user_params=LLMUserAggregatorParams(
+            vad_analyzer=SileroVADAnalyzer(),
+            user_turn_strategies=UserTurnStrategies(
+                stop=[TurnAnalyzerUserTurnStopStrategy(turn_analyzer=detector)]
+            ),
+        ),
     )
 
     pipeline = Pipeline([
