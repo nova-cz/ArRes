@@ -21,6 +21,9 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
   const [restaurante, setRestaurante] = useState<Restaurante | null>(null);
   const [aviso, setAviso] = useState("");
 
+  // Precarga todas las secciones para que el cambio sea inmediato.
+  useEffect(() => { menu.forEach(({ href }) => router.prefetch(href)); }, [router]);
+
   useEffect(() => {
     // Si ya lo conocíamos, se muestra al instante y se confirma en segundo plano.
     try {
