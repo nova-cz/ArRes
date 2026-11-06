@@ -41,6 +41,20 @@ class Reglas:
 
 
 @dataclass
+class Conocimiento:
+    """Lo que el equipo configura en la sección "Agente" del panel."""
+
+    nombre_agente: str = "Sofi"
+    voz: str = ""
+    tono: str = "calido"  # calido | formal
+    saludo: str = ""
+    sobre_negocio: str = ""
+    platillos: list[dict] = field(default_factory=list)  # solo los disponibles
+    faqs: list[dict] = field(default_factory=list)
+    promociones: list[dict] = field(default_factory=list)  # texto, termina (AAAA-MM-DD o None)
+
+
+@dataclass
 class Restaurante:
     id: str
     nombre: str

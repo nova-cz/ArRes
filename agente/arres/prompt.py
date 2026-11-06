@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from .modelos import DIAS, Reglas, Restaurante
+from .modelos import DIAS, Conocimiento, Reglas, Restaurante
 
 ESTILO_LLAMADA = """\
 Estás en una llamada telefónica. Tus respuestas se convierten en voz:
@@ -52,15 +52,52 @@ def proximos_dias(ahora: datetime) -> str:
     return "\n".join(lineas)
 
 
-def construir(restaurante: Restaurante, reglas: Reglas, canal: str, ahora: datetime) -> str:
+def _precio(p) -> str:
+    return f"${float(p):,.0f}" if p not in (None, "") else "precio no registrado"
+
+
+def conocimiento_legible(c: Conocimiento, hoy: str) -> str:
+    """Menú, preguntas y promociones vigentes en texto corto para la IA."""
+    partes = []
+    if c.sobre_negocio:
+        partes.append(f"Sobre el negocio:\n{c.sobre_negocio.strip()}")
+    if c.platillos:
+        lineas, categoria = [], None
+        for p in c.platillos:
+            if p.get("categoria") and p["categoria"] != categoria:
+                categoria = p["categoria"]
+                lineas.append(f"{categoria}:")
+            extra = " (vegetariano)" if p.get("vegetariano") else ""
+            desc = f" — {p['descripcion']}" if p.get("descripcion") else ""
+            lineas.append(f"- {p['nombre']}: {_precio(p.get('precio'))}{extra}{desc}")
+        partes.append("Menú (solo esto existe; si preguntan por otra cosa, no la tenemos):\n"
+                      + "\n".join(lineas))
+    if c.faqs:
+        partes.append("Preguntas frecuentes:\n" + "\n".join(
+            f"- {f['pregunta']} → {f['respuesta']}" for f in c.faqs))
+    vigentes = [p for p in c.promociones if not p.get("termina") or str(p["termina"]) >= hoy]
+    if vigentes:
+        partes.append("Promociones vigentes (solo estas):\n" + "\n".join(
+            f"- {p['texto']}" + (f" (hasta el {p['termina']})" if p.get("termina") else "")
+            for p in vigentes))
+    else:
+        partes.append("No hay promociones vigentes.")
+    return "\n\n".join(partes)
+
+
+def construir(restaurante: Restaurante, reglas: Reglas, canal: str, ahora: datetime,
+              conocimiento: Conocimiento | None = None) -> str:
+    c = conocimiento or Conocimiento()
     estilo = ESTILO_LLAMADA if canal == "llamada" else ESTILO_WHATSAPP
+    tono = ("cálido, cercano y casual, tuteando" if c.tono == "calido"
+            else "amable y formal, hablando de usted")
     modo = ("Di exactamente lo que responda crear_reserva: si dice estado 'confirmada', "
             "la reserva ya quedó en esa misma llamada; si dice 'pendiente', explica que el "
             "equipo la revisa y le avisan.")
     return f"""\
-Eres el anfitrión virtual de {restaurante.nombre}, un restaurante en México. Atiendes a
-los clientes en español mexicano, con calidez y sin rodeos. Eres una IA y lo dices si
-te preguntan.
+Eres {c.nombre_agente}, el anfitrión virtual de {restaurante.nombre}, un restaurante en
+México. Atiendes en español mexicano con un tono {tono}, sin rodeos. Eres una IA y lo
+dices si te preguntan.
 
 Tu trabajo: contestar dudas sobre el restaurante, tomar reservas y ayudar a consultar,
 cambiar o cancelar las que ya existen.
@@ -98,5 +135,6 @@ Tolerancia: {reglas.tolerancia_min} minutos; después la mesa se libera.
 
 Información del restaurante:
 {restaurante.direccion}
+{conocimiento_legible(c, ahora.strftime("%Y-%m-%d"))}
 {restaurante.info}
 """

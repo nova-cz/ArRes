@@ -38,9 +38,9 @@ async def responder(ctx: Contexto, texto: str, cliente=None, modelo: str | None 
     await almacen.guardar_mensaje(restaurante.id, ctx.telefono, ctx.canal, "cliente", texto)
 
     reglas = await almacen.reglas(restaurante.id)
-    mensajes: list[dict] = [
-        {"role": "system", "content": prompt.construir(restaurante, reglas, ctx.canal, ctx.ahora())}
-    ]
+    conocimiento = await almacen.conocimiento(restaurante.id)
+    instrucciones = prompt.construir(restaurante, reglas, ctx.canal, ctx.ahora(), conocimiento)
+    mensajes: list[dict] = [{"role": "system", "content": instrucciones}]
     for m in previos:
         rol = {"cliente": "user", "agente": "assistant"}.get(m["rol"])
         if rol:

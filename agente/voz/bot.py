@@ -63,6 +63,8 @@ from arres.textos import normalizar_telefono  # noqa: E402
 DESPEDIDA = "Con gusto. Gracias por llamar a {nombre}, ¡que tengas excelente día!"
 
 # Aviso obligatorio al inicio (LFPDPPP): es una IA y la llamada se graba.
+# Si el equipo escribe un saludo propio, este aviso se le agrega siempre al final.
+AVISO = "Soy {agente}, asistente virtual con inteligencia artificial; esta llamada se graba."
 SALUDO = ("Hola, gracias por llamar a {nombre}. Soy su asistente virtual con inteligencia "
           "artificial; esta llamada se graba para gestionar tu reserva. ¿En qué te ayudo?")
 
@@ -100,7 +102,7 @@ def servicio_llm(instrucciones: str):
     )
 
 
-def servicio_voz():
+def servicio_voz(voz: str = ""):
     """Deepgram (por defecto): usa la misma llave y crédito gratis que el oído.
     Cartesia: voz más natural, pero su plan gratis se acaba rápido."""
     if config.env("VOZ_PROVEEDOR", "deepgram") == "cartesia":
@@ -113,7 +115,7 @@ def servicio_voz():
     return DeepgramTTSService(
         api_key=config.env("DEEPGRAM_API_KEY"),
         settings=DeepgramTTSService.Settings(
-            voice=config.env("DEEPGRAM_VOZ", "aura-2-celeste-es")
+            voice=voz or config.env("DEEPGRAM_VOZ", "aura-2-celeste-es")
         ),
     )
 
@@ -122,7 +124,12 @@ async def run_bot(
     transport: BaseTransport, runner_args: RunnerArguments, ctx: Contexto, es_telefono: bool
 ) -> None:
     reglas = await ctx.almacen.reglas(ctx.restaurante.id)
-    instrucciones = prompt.construir(ctx.restaurante, reglas, "llamada", ctx.ahora())
+    conocimiento = await ctx.almacen.conocimiento(ctx.restaurante.id)
+    instrucciones = prompt.construir(ctx.restaurante, reglas, "llamada", ctx.ahora(), conocimiento)
+    if conocimiento.saludo.strip():
+        saludo = f"{conocimiento.saludo.strip()} " + AVISO.format(agente=conocimiento.nombre_agente)
+    else:
+        saludo = SALUDO.format(nombre=ctx.restaurante.nombre)
     if ctx.telefono:
         instrucciones += f"\nNúmero de quien llama: {ctx.telefono} (termina en {ctx.telefono[-4:]})."
 
@@ -130,7 +137,7 @@ async def run_bot(
         api_key=config.env("DEEPGRAM_API_KEY"),
         settings=DeepgramSTTService.Settings(model="nova-3", language=Language.ES),
     )
-    tts = servicio_voz()
+    tts = servicio_voz(conocimiento.voz)
     llm = servicio_llm(instrucciones)
 
     async def accion(params: FunctionCallParams) -> None:
@@ -225,7 +232,7 @@ async def run_bot(
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         # El saludo entra solo al historial al decirse (no se agrega a mano: quedaba doble).
-        await worker.queue_frames([TTSSpeakFrame(SALUDO.format(nombre=ctx.restaurante.nombre))])
+        await worker.queue_frames([TTSSpeakFrame(saludo)])
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):

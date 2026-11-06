@@ -6,13 +6,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
 import httpx
 
-from .modelos import NO_LLEGO, Reglas, Reserva, Restaurante
+from .modelos import NO_LLEGO, Conocimiento, Reglas, Reserva, Restaurante
 
 
 class Almacen(Protocol):
@@ -21,6 +22,7 @@ class Almacen(Protocol):
     async def restaurante_por_whatsapp(self, phone_number_id: str) -> Restaurante | None: ...
     async def restaurante_por_defecto(self) -> Restaurante | None: ...
     async def reglas(self, restaurante_id: str) -> Reglas: ...
+    async def conocimiento(self, restaurante_id: str) -> Conocimiento: ...
     async def reservas_entre(
         self, restaurante_id: str, desde: datetime, hasta: datetime
     ) -> list[Reserva]: ...
@@ -67,6 +69,7 @@ class AlmacenMemoria:
         self._reglas: dict[str, Reglas] = {}
         self.reservas: dict[str, Reserva] = {}
         self._mensajes: list[dict] = []
+        self._conocimiento: dict[str, Conocimiento] = {}
 
     @classmethod
     def con_demo(cls) -> AlmacenMemoria:
@@ -77,6 +80,16 @@ class AlmacenMemoria:
         almacen._reglas[demo.id] = Reglas(
             horario={0: [], 1: semana, 2: semana, 3: semana, 4: semana, 5: semana,
                      6: [("13:00", "19:00")]},
+        )
+        almacen._conocimiento[demo.id] = Conocimiento(
+            sobre_negocio="Cocina poblana tradicional en un ambiente familiar.",
+            platillos=[
+                {"categoria": "Platos fuertes", "nombre": "Mole poblano", "precio": 245},
+                {"categoria": "Platos fuertes", "nombre": "Chiles rellenos de queso", "precio": 190,
+                 "vegetariano": True},
+                {"categoria": "Antojitos", "nombre": "Cemita de milanesa", "precio": 165},
+            ],
+            faqs=[{"pregunta": "¿Hay estacionamiento?", "respuesta": "Sí, valet por $50."}],
         )
         return almacen
 
@@ -98,6 +111,9 @@ class AlmacenMemoria:
 
     async def reglas(self, restaurante_id):
         return self._reglas[restaurante_id]
+
+    async def conocimiento(self, restaurante_id):
+        return self._conocimiento.get(restaurante_id, Conocimiento())
 
     async def reservas_entre(self, restaurante_id, desde, hasta):
         return sorted(
@@ -251,6 +267,24 @@ class AlmacenSupabase:
         if not fila:
             raise LookupError(f"El restaurante {restaurante_id} no tiene reglas configuradas")
         return _a_reglas(fila)
+
+    async def conocimiento(self, restaurante_id):
+        donde = {"restaurante_id": f"eq.{restaurante_id}"}
+        agente, platillos, faqs, promos = await asyncio.gather(
+            self._uno("agente", donde),
+            self._varios("platillos", {**donde, "disponible": "eq.true", "order": "orden.asc"}),
+            self._varios("faqs", {**donde, "order": "orden.asc"}),
+            self._varios("promociones", donde),
+        )
+        agente = agente or {}
+        return Conocimiento(
+            nombre_agente=agente.get("nombre") or "Sofi",
+            voz=agente.get("voz") or "",
+            tono=agente.get("tono") or "calido",
+            saludo=agente.get("saludo") or "",
+            sobre_negocio=agente.get("sobre_negocio") or "",
+            platillos=platillos, faqs=faqs, promociones=promos,
+        )
 
     async def reservas_entre(self, restaurante_id, desde, hasta):
         filas = await self._varios("reservas", {
