@@ -22,7 +22,7 @@ export default function Calendario() {
           const personas = delDia.reduce((s, r) => s + r.personas, 0);
           return (
             <Tarjeta key={clave} className="bg-white/80">
-              <p className="font-bold capitalize">{titulo}</p>
+              <p className="font-bold first-letter:uppercase">{titulo}</p>
               <p className="mb-3 text-sm text-ink/55">{delDia.length} reservas · {personas} personas</p>
               <div className="space-y-2">
                 {delDia.map((r) => {

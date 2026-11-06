@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Bell, BowlFood, Hamburger, Cake, ForkKnife, MagnifyingGlass, Phone, Warning } from "@phosphor-icons/react";
-import { supabase, hora, type Reserva } from "@/lib/supabase";
+import { supabase, hora, dia, type Reserva } from "@/lib/supabase";
 import { Accion, ESTADOS, Tarjeta, useReglas, useReservas, useRestaurante } from "@/lib/panel";
 
 const minutosDesde = (iso: string) => (Date.now() - new Date(iso).getTime()) / 60000;
@@ -9,6 +9,8 @@ const minutosDesde = (iso: string) => (Date.now() - new Date(iso).getTime()) / 6
 export default function Hoy() {
   const restaurante = useRestaurante();
   const { reservas, cambiar } = useReservas(1);
+  // Lo que espera al equipo puede ser de otro día: se buscan los próximos 30.
+  const { reservas: proximas, cambiar: cambiarProxima } = useReservas(30);
   const [reglas] = useReglas();
   const [buscar, setBuscar] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
@@ -24,10 +26,12 @@ export default function Hoy() {
 
   const esperan = (r: Reserva) => ["pendiente", "escalada"].includes(r.estado);
   const q = buscar.toLowerCase();
-  const lista = reservas.filter((r) => (!q || r.nombre.toLowerCase().includes(q) || r.telefono.includes(q))
-    && (!soloPendientes || esperan(r)));
+  const pendientes = proximas.filter(esperan);
+  const base = soloPendientes ? pendientes : reservas;
+  const lista = base.filter((r) => !q || r.nombre.toLowerCase().includes(q) || r.telefono.includes(q));
   const de = (e: string) => reservas.filter((r) => r.estado === e);
-  const porAprobar = reservas.filter(esperan).length;
+  const porAprobar = pendientes.length;
+  const actualizar = (id: string, estado: string) => { cambiar(id, estado); cambiarProxima(id, estado); };
 
   const alerta = (r: Reserva) => {
     if (!reglas) return "";
@@ -59,7 +63,7 @@ export default function Hoy() {
       <section className="relative overflow-hidden rounded-[1.75rem] bg-rojo px-8 py-9 text-white shadow-[0_12px_40px_rgba(192,22,26,.25)]">
         <ForkKnife size={170} weight="light" className="absolute right-8 top-1/2 -translate-y-1/2 opacity-25" />
         <h1 className="font-serif text-4xl">Reservas de hoy</h1>
-        <p className="mt-2 text-white/85">{reservas.length} reservas · {porAprobar} esperan a tu equipo</p>
+        <p className="mt-2 text-white/85">{reservas.length} reservas hoy · {porAprobar} esperan a tu equipo</p>
         <button onClick={() => setSoloPendientes(!soloPendientes)}
           className="mt-5 rounded-full bg-white px-5 py-2 font-bold text-rojo hover:bg-crema">
           {soloPendientes ? "Ver todas" : "Revisar pendientes"}
@@ -98,7 +102,10 @@ export default function Hoy() {
                 const detalle = [r.motivo_escalada, r.notas].filter(Boolean).join(" · ");
                 return (
                   <tr key={r.id} className="border-t border-ink/5 align-top">
-                    <td className="py-3 font-semibold">{r.inicio ? hora(r.inicio) : "—"}</td>
+                    <td className="py-3 font-semibold">
+                      {r.inicio ? hora(r.inicio) : "—"}
+                      {soloPendientes && r.inicio && <span className="block text-xs font-normal capitalize text-ink/50">{dia(r.inicio)}</span>}
+                    </td>
                     <td>
                       {r.nombre}
                       <a href={`tel:${r.telefono}`} className="flex items-center gap-1 text-xs text-ink/55 hover:text-rojo"><Phone size={12} />{r.telefono}</a>
@@ -110,10 +117,10 @@ export default function Hoy() {
                       {aviso && <span className="mt-1 flex items-center gap-1 text-xs text-rojo"><Warning size={12} />{aviso}</span>}
                     </td>
                     <td className="space-x-1 whitespace-nowrap text-right">
-                      {esperan(r) && <><Accion onClick={() => cambiar(r.id, "confirmada")} principal>Aprobar</Accion>
-                        <Accion onClick={() => cambiar(r.id, "rechazada")}>Rechazar</Accion></>}
-                      {r.estado === "confirmada" && <><Accion onClick={() => cambiar(r.id, "llego")} principal>Llegó</Accion>
-                        <Accion onClick={() => cambiar(r.id, "no_llego")}>No llegó</Accion></>}
+                      {esperan(r) && <><Accion onClick={() => actualizar(r.id, "confirmada")} principal>Aprobar</Accion>
+                        <Accion onClick={() => actualizar(r.id, "rechazada")}>Rechazar</Accion></>}
+                      {r.estado === "confirmada" && <><Accion onClick={() => actualizar(r.id, "llego")} principal>Llegó</Accion>
+                        <Accion onClick={() => actualizar(r.id, "no_llego")}>No llegó</Accion></>}
                     </td>
                   </tr>
                 );
