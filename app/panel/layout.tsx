@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { House, CalendarBlank, Phone, Users, Robot, ListChecks, Gear, SignOut } from "@phosphor-icons/react";
+import { House, CalendarBlank, Phone, Users, Robot, ChartBar, ListChecks, Gear, SignOut } from "@phosphor-icons/react";
 import { supabase } from "@/lib/supabase";
 import { RestauranteCtx, type Restaurante } from "@/lib/panel";
 
@@ -11,6 +11,7 @@ const menu = [
   { href: "/panel/calendario", label: "Calendario", Icono: CalendarBlank },
   { href: "/panel/llamadas", label: "Llamadas", Icono: Phone },
   { href: "/panel/clientes", label: "Clientes", Icono: Users },
+  { href: "/panel/resultados", label: "Resultados", Icono: ChartBar },
   { href: "/panel/agente", label: "Agente", Icono: Robot },
   { href: "/panel/reglas", label: "Reglas", Icono: ListChecks },
   { href: "/panel/ajustes", label: "Ajustes", Icono: Gear },

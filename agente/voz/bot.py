@@ -56,7 +56,7 @@ from pipecat.turns.user_stop.turn_analyzer_user_turn_stop_strategy import (  # n
 from pipecat.turns.user_turn_strategies import UserTurnStrategies  # noqa: E402
 from pipecat.workers.runner import WorkerRunner  # noqa: E402
 
-from arres import config, herramientas, prompt  # noqa: E402
+from arres import config, herramientas, prompt, prueba  # noqa: E402
 from arres.herramientas import Contexto  # noqa: E402
 from arres.textos import normalizar_telefono  # noqa: E402
 
@@ -270,8 +270,8 @@ async def bot(runner_args: RunnerArguments):
         de, a = await numeros_twilio(call_data.call_id)
         telefono = normalizar_telefono(de)
         restaurante = await almacen.restaurante_por_telefono_agente(a) if a else None
-    if not restaurante:  # navegador o número sin registrar: restaurante de la demo
-        restaurante_id = config.env("RESTAURANTE_ID")
+    if not restaurante:  # navegador (prueba del panel) o número sin registrar
+        restaurante_id = prueba.restaurante_prueba.get() or config.env("RESTAURANTE_ID")
         restaurante = (await almacen.restaurante(restaurante_id) if restaurante_id
                        else await almacen.restaurante_por_defecto())
 
@@ -281,7 +281,31 @@ async def bot(runner_args: RunnerArguments):
     await run_bot(transport, runner_args, ctx, es_telefono=call_data is not None)
 
 
+def registrar_rutas_de_prueba() -> None:
+    """/probar: el panel abre aquí la llamada de prueba con el restaurante de quien prueba."""
+    from fastapi import Request
+    from fastapi.responses import RedirectResponse
+    from pipecat.runner.run import app
+
+    @app.get("/probar")
+    async def probar(token: str = ""):
+        respuesta = RedirectResponse("/client/")
+        restaurante_id = await prueba.restaurante_de(token)
+        if restaurante_id:
+            respuesta.set_cookie(prueba.COOKIE, prueba.firmar(restaurante_id), httponly=True,
+                                 samesite="lax", max_age=8 * 3600)
+        return respuesta
+
+    @app.middleware("http")
+    async def leer_cookie(request: Request, siguiente):
+        # El bot se crea dentro de esta petición y hereda el restaurante de la cookie.
+        prueba.restaurante_prueba.set(prueba.verificar(request.cookies.get(prueba.COOKIE, "")))
+        return await siguiente(request)
+
+
 if __name__ == "__main__":
     from pipecat.runner.run import main
+
+    registrar_rutas_de_prueba()
 
     main()
