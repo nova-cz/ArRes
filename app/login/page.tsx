@@ -16,11 +16,21 @@ export default function Login() {
   const [clave, setClave] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [nueva, setNueva] = useState(false);
+  const [mensaje, setMensaje] = useState("");
 
   async function entrar(e: React.FormEvent) {
     e.preventDefault();
     setCargando(true);
     setError("");
+    if (nueva) {
+      const { data, error } = await supabase.auth.signUp({ email: correo, password: clave,
+        options: { emailRedirectTo: `${window.location.origin}/panel` } });
+      setCargando(false);
+      if (error) return setError(error.message.includes("6") ? "La contraseña debe tener al menos 6 caracteres." : "No se pudo crear la cuenta.");
+      if (!data.session) return setMensaje("Te enviamos un correo para confirmar tu cuenta. Ábrelo y vuelve a entrar.");
+      return router.push("/panel");
+    }
     const { error } = await supabase.auth.signInWithPassword({ email: correo, password: clave });
     setCargando(false);
     if (error) return setError("Correo o contraseña incorrectos.");
@@ -60,8 +70,8 @@ export default function Login() {
         <form onSubmit={entrar} className="aparecer w-full max-w-sm space-y-5">
           <a href="/" className="text-3xl font-black lg:hidden">Ar<span className="text-rojo">RES</span></a>
           <div>
-            <h2 className="font-serif text-4xl">Bienvenido</h2>
-            <p className="mt-1 text-ink/60">Entra al panel de tu restaurante.</p>
+            <h2 className="font-serif text-4xl">{nueva ? "Crea tu cuenta" : "Bienvenido"}</h2>
+            <p className="mt-1 text-ink/60">{nueva ? "Da de alta tu restaurante en un minuto." : "Entra al panel de tu restaurante."}</p>
           </div>
 
           <button type="button" onClick={conGoogle}
@@ -80,15 +90,21 @@ export default function Login() {
           </label>
           <label className="block space-y-1.5">
             <span className="text-sm font-semibold">Contraseña</span>
-            <input type="password" required autoComplete="current-password" placeholder="••••••••" value={clave}
+            <input type="password" required minLength={6} autoComplete={nueva ? "new-password" : "current-password"} placeholder="••••••••" value={clave}
               onChange={(e) => setClave(e.target.value)} className={campo} />
           </label>
           {error && <p className="rounded-xl bg-rojo/10 px-4 py-2 text-sm font-semibold text-rojo">{error}</p>}
+          {mensaje && <p className="rounded-xl bg-green-100 px-4 py-2 text-sm font-semibold text-green-800">{mensaje}</p>}
           <button disabled={cargando}
             className="w-full rounded-2xl bg-rojo py-3.5 font-bold text-white shadow-[0_10px_25px_rgba(192,22,26,.25)] transition hover:-translate-y-0.5 hover:bg-granate disabled:opacity-60">
-            {cargando ? "Entrando…" : "Entrar"}
+            {cargando ? "Un momento…" : nueva ? "Crear cuenta" : "Entrar"}
           </button>
-          <p className="text-center text-sm text-ink/50">¿Aún no usas ArRES? <a href="/" className="font-semibold text-rojo">Agenda tu demo</a></p>
+          <p className="text-center text-sm text-ink/50">
+            {nueva ? "¿Ya tienes cuenta? " : "¿Aún no usas ArRES? "}
+            <button type="button" onClick={() => { setNueva(!nueva); setError(""); setMensaje(""); }} className="font-semibold text-rojo">
+              {nueva ? "Entra aquí" : "Crea tu cuenta"}
+            </button>
+          </p>
         </form>
       </section>
     </main>

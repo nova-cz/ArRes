@@ -35,13 +35,19 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return router.replace("/login");
       // RLS solo deja ver los restaurantes donde el usuario está en "miembros".
-      const { data } = await supabase.from("restaurantes").select("id, nombre").limit(1);
+      const buscar = () => supabase.from("restaurantes").select("id, nombre").limit(1);
+      let { data } = await buscar();
+      if (!data?.[0]) {
+        // ¿Alguien lo invitó con su correo? Se le da acceso y se vuelve a buscar.
+        const { data: aceptadas } = await supabase.rpc("aceptar_invitaciones");
+        if (aceptadas) ({ data } = await buscar());
+      }
       if (data?.[0]) {
         setRestaurante(data[0]);
         try { sessionStorage.setItem("arres-restaurante", JSON.stringify(data[0])); } catch {}
       } else {
         setRestaurante(null);
-        setAviso("Tu usuario todavía no tiene un restaurante asignado.");
+        setAviso("nuevo");
       }
     })();
   }, [router]);
@@ -72,7 +78,7 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
           <RestauranteCtx.Provider value={restaurante}>
             <div key={ruta} className="aparecer">{children}</div>
           </RestauranteCtx.Provider>
-        ) : aviso ? <p className="pt-4 text-ink/70">{aviso}</p> : <Esqueleto />}
+        ) : aviso === "nuevo" ? <CrearRestaurante alCrear={setRestaurante} /> : <Esqueleto />}
       </main>
     </div>
   );
@@ -85,5 +91,29 @@ function Esqueleto() {
       <div className="h-40 rounded-[1.75rem] bg-white/50" />
       <div className="grid gap-4 md:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-44 rounded-[1.75rem] bg-white/50" />)}</div>
     </div>
+  );
+}
+
+function CrearRestaurante({ alCrear }: { alCrear: (r: Restaurante) => void }) {
+  const [nombre, setNombre] = useState("");
+  const [error, setError] = useState("");
+  async function crear(e: React.FormEvent) {
+    e.preventDefault();
+    const { data, error } = await supabase.rpc("crear_restaurante", { nombre_restaurante: nombre });
+    if (error) return setError("No se pudo crear. ¿Ya corriste migracion_05_equipo.sql?");
+    const r = { id: data as string, nombre: nombre.trim() };
+    try { sessionStorage.setItem("arres-restaurante", JSON.stringify(r)); } catch {}
+    alCrear(r);
+  }
+  return (
+    <form onSubmit={crear} className="aparecer mx-auto mt-16 max-w-md space-y-4 rounded-[1.75rem] bg-white/85 p-8 shadow-lg">
+      <h1 className="font-serif text-3xl">Da de alta tu restaurante</h1>
+      <p className="text-ink/60">Empieza con reglas básicas; después ajustas horario, menú y agente.</p>
+      <input required value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del restaurante"
+        className="w-full rounded-2xl border border-ink/10 bg-white px-5 py-3.5 outline-none focus:border-rojo" />
+      {error && <p className="text-sm font-semibold text-rojo">{error}</p>}
+      <button className="w-full rounded-2xl bg-rojo py-3.5 font-bold text-white hover:bg-granate">Crear restaurante</button>
+      <p className="text-xs text-ink/50">¿Te invitaron a un restaurante? Pide que te inviten con este mismo correo y vuelve a entrar.</p>
+    </form>
   );
 }

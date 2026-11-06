@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Bell, BowlFood, Hamburger, Cake, ForkKnife, MagnifyingGlass, Phone, Warning } from "@phosphor-icons/react";
 import { supabase, hora, dia, type Reserva } from "@/lib/supabase";
 import { Accion, ESTADOS, Tarjeta, useReglas, useReservas, useRestaurante } from "@/lib/panel";
+import NuevaReserva from "@/components/panel/NuevaReserva";
+import ProbarAgente from "@/components/panel/ProbarAgente";
 
 const minutosDesde = (iso: string) => (Date.now() - new Date(iso).getTime()) / 60000;
 
@@ -14,6 +16,7 @@ export default function Hoy() {
   const [reglas] = useReglas();
   const [buscar, setBuscar] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
+  const [nueva, setNueva] = useState(false);
   const [notas, setNotas] = useState("");
   const [, setTic] = useState(0);
 
@@ -27,9 +30,12 @@ export default function Hoy() {
   const esperan = (r: Reserva) => ["pendiente", "escalada"].includes(r.estado);
   const q = buscar.toLowerCase();
   const pendientes = proximas.filter(esperan);
-  const base = soloPendientes ? pendientes : reservas;
+  // Próximas = todo lo que viene (hoy y después), sin canceladas ni rechazadas.
+  const vigentes = proximas.filter((r) => !["cancelada", "rechazada"].includes(r.estado));
+  const base = soloPendientes ? pendientes : vigentes;
   const lista = base.filter((r) => !q || r.nombre.toLowerCase().includes(q) || r.telefono.includes(q));
-  const de = (e: string) => reservas.filter((r) => r.estado === e);
+  // Confirmadas: las de hoy. Por confirmar y escaladas: todas las que vienen (igual que el calendario).
+  const de = (e: string) => (e === "confirmada" ? reservas : proximas).filter((r) => r.estado === e);
   const porAprobar = pendientes.length;
   const actualizar = (id: string, estado: string) => { cambiar(id, estado); cambiarProxima(id, estado); };
 
@@ -41,7 +47,7 @@ export default function Hoy() {
   };
 
   const tarjetas = [
-    { t: "Confirmadas", e: "confirmada", bg: "bg-[#E3EFDF]/90", Icono: BowlFood },
+    { t: "Confirmadas hoy", e: "confirmada", bg: "bg-[#E3EFDF]/90", Icono: BowlFood },
     { t: "Por confirmar", e: "pendiente", bg: "bg-[#FBE5CB]/90", Icono: Hamburger },
     { t: "Escaladas", e: "escalada", bg: "bg-[#F6D6D3]/90", Icono: Cake },
   ];
@@ -64,11 +70,18 @@ export default function Hoy() {
         <ForkKnife size={170} weight="light" className="absolute right-8 top-1/2 -translate-y-1/2 opacity-25" />
         <h1 className="font-serif text-4xl">Reservas de hoy</h1>
         <p className="mt-2 text-white/85">{reservas.length} reservas hoy · {porAprobar} esperan a tu equipo</p>
-        <button onClick={() => setSoloPendientes(!soloPendientes)}
-          className="mt-5 rounded-full bg-white px-5 py-2 font-bold text-rojo hover:bg-crema">
-          {soloPendientes ? "Ver todas" : "Revisar pendientes"}
-        </button>
+        <div className="relative mt-5 flex flex-wrap gap-2">
+          <button onClick={() => setSoloPendientes(!soloPendientes)}
+            className="rounded-full bg-white px-5 py-2.5 font-bold text-rojo hover:bg-crema">
+            {soloPendientes ? "Ver todas" : "Revisar pendientes"}
+          </button>
+          <button onClick={() => setNueva(true)} className="rounded-full border border-white/50 px-5 py-2.5 font-bold hover:bg-white/10">
+            + Nueva reserva
+          </button>
+          <ProbarAgente className="!bg-vino hover:!bg-granate" />
+        </div>
       </section>
+      {nueva && <NuevaReserva restauranteId={restaurante.id} reglas={reglas} cerrar={() => setNueva(false)} />}
 
       <div className="grid gap-4 md:grid-cols-3">
         {tarjetas.map(({ t, e, bg, Icono }) => (
@@ -80,7 +93,7 @@ export default function Hoy() {
             <div className="mt-4 space-y-2">
               {de(e).slice(0, 3).map((r) => (
                 <p key={r.id} className="truncate rounded-xl bg-white/70 px-3 py-2 text-sm">
-                  {r.inicio ? hora(r.inicio) : "Sin hora"} · {r.nombre} · {r.personas}
+                  {r.inicio ? `${e === "confirmada" ? "" : dia(r.inicio) + " · "}${hora(r.inicio)}` : "Sin hora"} · {r.nombre} · {r.personas}
                 </p>
               ))}
             </div>
@@ -104,7 +117,7 @@ export default function Hoy() {
                   <tr key={r.id} className="border-t border-ink/5 align-top">
                     <td className="py-3 font-semibold">
                       {r.inicio ? hora(r.inicio) : "—"}
-                      {soloPendientes && r.inicio && <span className="block text-xs font-normal capitalize text-ink/50">{dia(r.inicio)}</span>}
+                      {r.inicio && <span className="block text-xs font-normal capitalize text-ink/50">{dia(r.inicio)}</span>}
                     </td>
                     <td>
                       {r.nombre}

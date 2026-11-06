@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Tarjeta, useRestaurante } from "@/lib/panel";
+import Equipo from "@/components/panel/Equipo";
 
 type Datos = { nombre: string; direccion: string; telefono_agente: string | null };
 
@@ -40,6 +41,7 @@ export default function Ajustes() {
         <button onClick={guardar} className="rounded-full bg-rojo px-6 py-3 font-bold text-white hover:bg-granate">Guardar</button>
         <span className="text-sm text-ink/70">{estado}</span>
       </div>
+      <Equipo restauranteId={id} />
     </div>
   );
 }

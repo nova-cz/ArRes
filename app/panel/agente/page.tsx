@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Plus, Trash, Sparkle } from "@phosphor-icons/react";
+import { Plus, Trash, Sparkle, SpeakerHigh } from "@phosphor-icons/react";
+import ProbarAgente from "@/components/panel/ProbarAgente";
 import { supabase } from "@/lib/supabase";
 import { Tarjeta, useRestaurante } from "@/lib/panel";
 
@@ -28,6 +29,7 @@ export default function AgentePage() {
   const [pegado, setPegado] = useState("");
   const [leyendo, setLeyendo] = useState(false);
   const [estado, setEstado] = useState("");
+  const [sonando, setSonando] = useState(false);
 
   useEffect(() => {
     const de = { restaurante_id: id };
@@ -47,6 +49,18 @@ export default function AgentePage() {
   const editar = <T,>(lista: T[], set: (l: T[]) => void, i: number, cambio: Partial<T>) =>
     set(lista.map((x, j) => (j === i ? { ...x, ...cambio } : x)));
   const quitar = <T,>(lista: T[], set: (l: T[]) => void, i: number) => set(lista.filter((_, j) => j !== i));
+
+  async function escuchar() {
+    setSonando(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const texto = agente!.saludo.trim() || `Hola, gracias por llamar. Soy ${agente!.nombre}, ¿en qué te ayudo?`;
+    const r = await fetch("/api/voz", { method: "POST", body: JSON.stringify({ voz: agente!.voz, texto }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` } });
+    if (!r.ok) { setSonando(false); return setEstado((await r.json()).error); }
+    const audio = new Audio(URL.createObjectURL(await r.blob()));
+    audio.onended = () => setSonando(false);
+    audio.play();
+  }
 
   async function leerMenu() {
     setLeyendo(true);
@@ -85,16 +99,25 @@ export default function AgentePage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="font-serif text-4xl">Tu agente</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-serif text-4xl">Tu agente</h1>
+        <ProbarAgente />
+      </div>
 
       <Tarjeta className="grid gap-4 bg-white/85 sm:grid-cols-2">
         <h2 className="text-lg font-bold sm:col-span-2">Identidad</h2>
         <label><span className="font-semibold">Nombre del agente</span>
           <input value={agente.nombre} onChange={(e) => setAgente({ ...agente, nombre: e.target.value })} className={campo} /></label>
         <label><span className="font-semibold">Voz</span>
-          <select value={agente.voz} onChange={(e) => setAgente({ ...agente, voz: e.target.value })} className={campo}>
-            {VOCES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select></label>
+          <div className="flex gap-2">
+            <select value={agente.voz} onChange={(e) => setAgente({ ...agente, voz: e.target.value })} className={campo}>
+              {VOCES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            <button type="button" onClick={escuchar} disabled={sonando} title="Escuchar"
+              className="flex shrink-0 items-center gap-1 rounded-2xl bg-crema px-4 font-semibold text-rojo hover:bg-orange-100 disabled:opacity-50">
+              <SpeakerHigh size={18} />{sonando ? "…" : "Escuchar"}
+            </button>
+          </div></label>
         <label><span className="font-semibold">Tono</span>
           <select value={agente.tono} onChange={(e) => setAgente({ ...agente, tono: e.target.value })} className={campo}>
             <option value="calido">Cálido y casual (tutea)</option><option value="formal">Amable y formal (de usted)</option>
