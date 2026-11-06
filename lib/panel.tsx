@@ -16,10 +16,21 @@ export const ESTADOS: Record<string, [string, string]> = {
   cancelada: ["Cancelada", "text-ink/50"],
 };
 
+// Memoria entre secciones: se muestra lo último que se cargó mientras llega lo nuevo.
+const cache = new Map<string, unknown>();
+
 /** Reservas de `dias` días desde hoy, en vivo (lo que agenda el agente aparece solo). */
 export function useReservas(dias = 1) {
   const { id } = useRestaurante();
-  const [reservas, setReservas] = useState<Reserva[]>([]);
+  const clave = `reservas-${id}-${dias}`;
+  const [reservas, setReservasEstado] = useState<Reserva[]>(() => (cache.get(clave) as Reserva[]) ?? []);
+  const setReservas = useCallback((valor: Reserva[] | ((r: Reserva[]) => Reserva[])) => {
+    setReservasEstado((previo) => {
+      const nuevo = typeof valor === "function" ? valor(previo) : valor;
+      cache.set(clave, nuevo);
+      return nuevo;
+    });
+  }, [clave]);
 
   const cargar = useCallback(async () => {
     const [desde, hasta] = rangoDia(0, dias);
@@ -27,7 +38,7 @@ export function useReservas(dias = 1) {
       .or(`and(inicio.gte.${desde},inicio.lt.${hasta}),and(inicio.is.null,estado.eq.escalada)`)
       .order("inicio", { ascending: true, nullsFirst: true });
     setReservas(data ?? []);
-  }, [id, dias]);
+  }, [id, dias, setReservas]);
 
   useEffect(() => {
     cargar();
@@ -48,9 +59,12 @@ export function useReservas(dias = 1) {
 
 export function useReglas() {
   const { id } = useRestaurante();
-  const [reglas, setReglas] = useState<Reglas | null>(null);
+  const [reglas, setReglas] = useState<Reglas | null>(() => (cache.get(`reglas-${id}`) as Reglas) ?? null);
   useEffect(() => {
-    supabase.from("reglas").select("*").eq("restaurante_id", id).single().then(({ data }) => setReglas(data));
+    supabase.from("reglas").select("*").eq("restaurante_id", id).single().then(({ data }) => {
+      cache.set(`reglas-${id}`, data);
+      setReglas(data);
+    });
   }, [id]);
   return [reglas, setReglas] as const;
 }
