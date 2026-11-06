@@ -31,10 +31,10 @@ export default function Llamadas() {
 
   return (
     <div className="space-y-4">
-      <h1 className="font-serif text-3xl">Llamadas atendidas</h1>
+      <h1 className="font-serif text-4xl">Llamadas atendidas</h1>
       {!llamadas.length && <p className="text-ink/60">Todavía no hay llamadas.</p>}
       {llamadas.map((l, i) => (
-        <section key={i} className="rounded-[1.5rem] bg-white/80 p-5">
+        <section key={i} className="rounded-[1.75rem] border border-white/80 bg-white/85 p-6">
           <button onClick={() => setAbierta(abierta === i ? null : i)} className="flex w-full justify-between text-left font-semibold">
             <span>{l.telefono}</span>
             <span className="text-sm text-ink/60">{dia(l.inicio)} · {hora(l.inicio)} · {l.mensajes.length} mensajes</span>

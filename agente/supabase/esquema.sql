@@ -168,3 +168,6 @@ values (
     "4": [["13:00","23:00"]], "5": [["13:00","23:00"]], "6": [["13:00","19:00"]]}'
 )
 on conflict (restaurante_id) do nothing;
+
+-- Notas del equipo (panel)
+alter table restaurantes add column if not exists notas_equipo text not null default '';

@@ -1,166 +1,137 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import { ForkKnife, Phone, Warning } from "@phosphor-icons/react";
-import { supabase, hora, dia, rangoDia, type Reserva, type Reglas } from "@/lib/supabase";
-import { useRestaurante } from "@/lib/panel";
-
-const ESTADOS: Record<string, [string, string]> = {
-  confirmada: ["Confirmada", "text-green-700"],
-  pendiente: ["Por confirmar", "text-naranja"],
-  escalada: ["Escalada", "text-rojo"],
-  llego: ["Llegó", "text-sky-700"],
-  no_llego: ["No llegó", "text-ink/50"],
-  rechazada: ["Rechazada", "text-ink/50"],
-  cancelada: ["Cancelada", "text-ink/50"],
-};
+import { useEffect, useState } from "react";
+import { Bell, BowlFood, Hamburger, Cake, ForkKnife, MagnifyingGlass, Phone, Warning } from "@phosphor-icons/react";
+import { supabase, hora, type Reserva } from "@/lib/supabase";
+import { Accion, ESTADOS, Tarjeta, useReglas, useReservas, useRestaurante } from "@/lib/panel";
 
 const minutosDesde = (iso: string) => (Date.now() - new Date(iso).getTime()) / 60000;
 
 export default function Hoy() {
   const restaurante = useRestaurante();
-  const [vista, setVista] = useState<"hoy" | "semana">("hoy");
-  const [reservas, setReservas] = useState<Reserva[]>([]);
-  const [reglas, setReglas] = useState<Reglas | null>(null);
+  const { reservas, cambiar } = useReservas(1);
+  const [reglas] = useReglas();
   const [buscar, setBuscar] = useState("");
+  const [soloPendientes, setSoloPendientes] = useState(false);
+  const [notas, setNotas] = useState("");
   const [, setTic] = useState(0);
 
-  const cargar = useCallback(async () => {
-    const [desde, hasta] = vista === "hoy" ? rangoDia(0) : rangoDia(0, 8);
-    const { data } = await supabase.from("reservas").select("*")
-      .eq("restaurante_id", restaurante.id)
-      .or(`and(inicio.gte.${desde},inicio.lt.${hasta}),and(inicio.is.null,estado.eq.escalada)`)
-      .order("inicio", { ascending: true, nullsFirst: true });
-    setReservas(data ?? []);
-  }, [restaurante.id, vista]);
-
   useEffect(() => {
-    cargar();
-    supabase.from("reglas").select("*").eq("restaurante_id", restaurante.id).single()
-      .then(({ data }) => setReglas(data));
-    // En vivo: lo que el agente agenda por teléfono aparece sin recargar.
-    const canal = supabase.channel("reservas")
-      .on("postgres_changes", { event: "*", schema: "public", table: "reservas",
-        filter: `restaurante_id=eq.${restaurante.id}` }, cargar)
-      .subscribe();
+    supabase.from("restaurantes").select("notas_equipo").eq("id", restaurante.id).single()
+      .then(({ data }) => setNotas(data?.notas_equipo ?? ""));
     const reloj = setInterval(() => setTic((t) => t + 1), 30000); // refresca alertas de tiempo
-    return () => { supabase.removeChannel(canal); clearInterval(reloj); };
-  }, [cargar, restaurante.id]);
+    return () => clearInterval(reloj);
+  }, [restaurante.id]);
 
-  async function cambiar(id: string, estado: string) {
-    setReservas((rs) => rs.map((r) => (r.id === id ? { ...r, estado } : r)));
-    await supabase.from("reservas").update({ estado }).eq("id", id);
-  }
-
+  const esperan = (r: Reserva) => ["pendiente", "escalada"].includes(r.estado);
   const q = buscar.toLowerCase();
-  const lista = reservas.filter((r) => !q || r.nombre.toLowerCase().includes(q) || r.telefono.includes(q));
-  const de = (e: string) => lista.filter((r) => r.estado === e);
-  const porConfirmar = de("pendiente").length + de("escalada").length;
+  const lista = reservas.filter((r) => (!q || r.nombre.toLowerCase().includes(q) || r.telefono.includes(q))
+    && (!soloPendientes || esperan(r)));
+  const de = (e: string) => reservas.filter((r) => r.estado === e);
+  const porAprobar = reservas.filter(esperan).length;
 
   const alerta = (r: Reserva) => {
     if (!reglas) return "";
-    if (["pendiente", "escalada"].includes(r.estado) && minutosDesde(r.creado_en) > reglas.minutos_alerta)
-      return "Sin respuesta";
-    if (r.estado === "confirmada" && r.inicio && minutosDesde(r.inicio) > reglas.tolerancia_min)
-      return "¿Llegó?";
+    if (esperan(r) && minutosDesde(r.creado_en) > reglas.minutos_alerta) return "Sin respuesta";
+    if (r.estado === "confirmada" && r.inicio && minutosDesde(r.inicio) > reglas.tolerancia_min) return "¿Llegó?";
     return "";
   };
 
   const tarjetas = [
-    { t: "Confirmadas", e: "confirmada", bg: "bg-green-100/80" },
-    { t: "Por confirmar", e: "pendiente", bg: "bg-orange-100/80" },
-    { t: "Escaladas", e: "escalada", bg: "bg-red-100/80" },
+    { t: "Confirmadas", e: "confirmada", bg: "bg-[#E3EFDF]/90", Icono: BowlFood },
+    { t: "Por confirmar", e: "pendiente", bg: "bg-[#FBE5CB]/90", Icono: Hamburger },
+    { t: "Escaladas", e: "escalada", bg: "bg-[#F6D6D3]/90", Icono: Cake },
   ];
 
   return (
-    <div className="space-y-6">
-      <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar nombre o teléfono…"
-        className="w-full rounded-full border border-white/70 bg-white/70 px-5 py-3 outline-none focus:border-rojo" />
+    <div className="space-y-5">
+      <div className="flex gap-3">
+        <label className="flex flex-1 items-center gap-2 rounded-full border border-white/80 bg-white/70 px-5 py-3">
+          <MagnifyingGlass size={18} className="text-ink/40" />
+          <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar reserva, nombre o teléfono…"
+            className="w-full bg-transparent outline-none" />
+        </label>
+        <button onClick={() => setSoloPendientes(true)}
+          className="flex items-center gap-2 rounded-full border border-white/80 bg-white/80 px-5 font-semibold">
+          <Bell size={18} className="text-rojo" />{porAprobar} por aprobar
+        </button>
+      </div>
 
-      <section className="relative overflow-hidden rounded-[2rem] bg-rojo p-8 text-white">
-        <ForkKnife size={140} weight="thin" className="absolute -right-2 top-2 opacity-25" />
-        <div className="mb-4 flex gap-2">
-          {(["hoy", "semana"] as const).map((v) => (
-            <button key={v} onClick={() => setVista(v)}
-              className={`rounded-full px-4 py-1 text-sm font-bold ${vista === v ? "bg-white text-rojo" : "bg-white/20"}`}>
-              {v === "hoy" ? "Hoy" : "Próximos 7 días"}
-            </button>
-          ))}
-        </div>
-        <h1 className="font-serif text-4xl">{vista === "hoy" ? "Reservas de hoy" : "Próximas reservas"}</h1>
-        <p className="mt-2 text-white/85">
-          {restaurante.nombre} · {lista.length} reservas · {porConfirmar} esperan a tu equipo
-        </p>
+      <section className="relative overflow-hidden rounded-[1.75rem] bg-rojo px-8 py-9 text-white shadow-[0_12px_40px_rgba(192,22,26,.25)]">
+        <ForkKnife size={170} weight="light" className="absolute right-8 top-1/2 -translate-y-1/2 opacity-25" />
+        <h1 className="font-serif text-4xl">Reservas de hoy</h1>
+        <p className="mt-2 text-white/85">{reservas.length} reservas · {porAprobar} esperan a tu equipo</p>
+        <button onClick={() => setSoloPendientes(!soloPendientes)}
+          className="mt-5 rounded-full bg-white px-5 py-2 font-bold text-rojo hover:bg-crema">
+          {soloPendientes ? "Ver todas" : "Revisar pendientes"}
+        </button>
       </section>
 
       <div className="grid gap-4 md:grid-cols-3">
-        {tarjetas.map(({ t, e, bg }) => (
-          <div key={e} className={`rounded-[1.5rem] p-5 ${bg}`}>
-            <p className="font-semibold">{t}</p>
-            <p className="font-serif text-4xl">{de(e).length}</p>
-            <div className="mt-3 space-y-2">
+        {tarjetas.map(({ t, e, bg, Icono }) => (
+          <Tarjeta key={e} className={bg}>
+            <div className="flex items-start justify-between">
+              <div><p className="font-semibold">{t}</p><p className="font-serif text-5xl">{de(e).length}</p></div>
+              <span className="grid h-16 w-16 place-items-center rounded-full bg-white text-rojo shadow"><Icono size={30} /></span>
+            </div>
+            <div className="mt-4 space-y-2">
               {de(e).slice(0, 3).map((r) => (
                 <p key={r.id} className="truncate rounded-xl bg-white/70 px-3 py-2 text-sm">
                   {r.inicio ? hora(r.inicio) : "Sin hora"} · {r.nombre} · {r.personas}
                 </p>
               ))}
             </div>
-          </div>
+          </Tarjeta>
         ))}
       </div>
 
-      <section className="overflow-x-auto rounded-[1.5rem] bg-white/80 p-5">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead className="text-left text-ink/50">
-            <tr><th className="py-2">Hora</th><th>Cliente</th><th>Pers.</th><th>Estado</th><th>Notas</th><th /></tr>
-          </thead>
-          <tbody>
-            {lista.map((r) => {
-              const [etiqueta, color] = ESTADOS[r.estado] ?? [r.estado, ""];
-              const aviso = alerta(r);
-              return (
-                <tr key={r.id} className="border-t border-ink/5 align-top">
-                  <td className="py-3 font-semibold">
-                    {r.inicio ? hora(r.inicio) : "—"}
-                    {vista === "semana" && r.inicio && <span className="block text-xs text-ink/50">{dia(r.inicio)}</span>}
-                  </td>
-                  <td>
-                    {r.nombre}
-                    <a href={`tel:${r.telefono}`} className="flex items-center gap-1 text-xs text-ink/60 hover:text-rojo">
-                      <Phone size={12} />{r.telefono} · {r.canal}
-                    </a>
-                  </td>
-                  <td>{r.personas}</td>
-                  <td className={`font-semibold ${color}`}>
-                    {etiqueta}
-                    {aviso && <span className="mt-1 flex items-center gap-1 text-xs text-rojo"><Warning size={12} />{aviso}</span>}
-                  </td>
-                  <td className="max-w-[220px] text-xs text-ink/70">{[r.motivo_escalada, r.notas].filter(Boolean).join(" · ")}</td>
-                  <td className="space-x-1 whitespace-nowrap text-right">
-                    {["pendiente", "escalada"].includes(r.estado) && <>
-                      <Accion onClick={() => cambiar(r.id, "confirmada")} principal>Aprobar</Accion>
-                      <Accion onClick={() => cambiar(r.id, "rechazada")}>Rechazar</Accion>
-                    </>}
-                    {r.estado === "confirmada" && <>
-                      <Accion onClick={() => cambiar(r.id, "llego")} principal>Llegó</Accion>
-                      <Accion onClick={() => cambiar(r.id, "no_llego")}>No llegó</Accion>
-                    </>}
-                  </td>
-                </tr>
-              );
-            })}
-            {!lista.length && <tr><td colSpan={6} className="py-8 text-center text-ink/50">No hay reservas.</td></tr>}
-          </tbody>
-        </table>
-      </section>
-    </div>
-  );
-}
+      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <Tarjeta className="overflow-x-auto bg-white/85">
+          <h2 className="mb-3 text-lg font-bold">{soloPendientes ? "Esperan a tu equipo" : "Próximas reservas"}</h2>
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="text-left text-ink/45">
+              <tr><th className="py-2 font-medium">Hora</th><th className="font-medium">Nombre</th><th className="font-medium">Pers.</th><th className="font-medium">Estado</th><th /></tr>
+            </thead>
+            <tbody>
+              {lista.map((r) => {
+                const [etiqueta, color] = ESTADOS[r.estado] ?? [r.estado, ""];
+                const aviso = alerta(r);
+                const detalle = [r.motivo_escalada, r.notas].filter(Boolean).join(" · ");
+                return (
+                  <tr key={r.id} className="border-t border-ink/5 align-top">
+                    <td className="py-3 font-semibold">{r.inicio ? hora(r.inicio) : "—"}</td>
+                    <td>
+                      {r.nombre}
+                      <a href={`tel:${r.telefono}`} className="flex items-center gap-1 text-xs text-ink/55 hover:text-rojo"><Phone size={12} />{r.telefono}</a>
+                      {detalle && <span className="block max-w-[240px] text-xs text-ink/55">{detalle}</span>}
+                    </td>
+                    <td>{r.personas}</td>
+                    <td className={`font-semibold ${color}`}>
+                      {etiqueta}
+                      {aviso && <span className="mt-1 flex items-center gap-1 text-xs text-rojo"><Warning size={12} />{aviso}</span>}
+                    </td>
+                    <td className="space-x-1 whitespace-nowrap text-right">
+                      {esperan(r) && <><Accion onClick={() => cambiar(r.id, "confirmada")} principal>Aprobar</Accion>
+                        <Accion onClick={() => cambiar(r.id, "rechazada")}>Rechazar</Accion></>}
+                      {r.estado === "confirmada" && <><Accion onClick={() => cambiar(r.id, "llego")} principal>Llegó</Accion>
+                        <Accion onClick={() => cambiar(r.id, "no_llego")}>No llegó</Accion></>}
+                    </td>
+                  </tr>
+                );
+              })}
+              {!lista.length && <tr><td colSpan={5} className="py-8 text-center text-ink/45">No hay reservas.</td></tr>}
+            </tbody>
+          </table>
+        </Tarjeta>
 
-function Accion({ children, onClick, principal }: { children: React.ReactNode; onClick: () => void; principal?: boolean }) {
-  return (
-    <button onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-xs font-bold ${principal ? "bg-rojo text-white hover:bg-granate" : "bg-ink/5 hover:bg-ink/10"}`}>
-      {children}
-    </button>
+        <Tarjeta className="bg-[#FBF1C4]/90">
+          <h2 className="mb-3 text-lg font-bold">Notas del equipo</h2>
+          <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={8}
+            onBlur={() => supabase.from("restaurantes").update({ notas_equipo: notas }).eq("id", restaurante.id)}
+            placeholder={"Ej. Terraza cerrada si llueve.\nMesa 6 reservada para cumpleaños."}
+            className="w-full resize-none bg-transparent leading-relaxed outline-none placeholder:text-ink/35" />
+          <p className="text-xs text-ink/45">Se guarda al salir del cuadro.</p>
+        </Tarjeta>
+      </div>
+    </div>
   );
 }

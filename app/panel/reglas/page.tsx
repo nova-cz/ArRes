@@ -17,14 +17,11 @@ const NUMEROS: [keyof Reglas, string, string][] = [
 export default function ReglasPage() {
   const restaurante = useRestaurante();
   const [reglas, setReglas] = useState<Reglas | null>(null);
-  const [info, setInfo] = useState("");
   const [estado, setEstado] = useState("");
 
   useEffect(() => {
     supabase.from("reglas").select("*").eq("restaurante_id", restaurante.id).single()
       .then(({ data }) => setReglas(data));
-    supabase.from("restaurantes").select("info").eq("id", restaurante.id).single()
-      .then(({ data }) => setInfo(data?.info ?? ""));
   }, [restaurante.id]);
 
   if (!reglas) return <p className="text-ink/60">Cargando…</p>;
@@ -36,20 +33,17 @@ export default function ReglasPage() {
   async function guardar() {
     setEstado("Guardando…");
     const { restaurante_id, ...cambios } = reglas!;
-    const [a, b] = await Promise.all([
-      supabase.from("reglas").update(cambios).eq("restaurante_id", restaurante_id),
-      supabase.from("restaurantes").update({ info }).eq("id", restaurante_id),
-    ]);
-    setEstado(a.error || b.error ? "No se pudo guardar." : "Guardado. El agente ya usa estas reglas.");
+    const { error } = await supabase.from("reglas").update(cambios).eq("restaurante_id", restaurante_id);
+    setEstado(error ? "No se pudo guardar." : "Guardado. El agente ya usa estas reglas.");
   }
 
   const campo = "rounded-full border border-ink/10 bg-white px-4 py-2 outline-none focus:border-rojo";
 
   return (
     <div className="space-y-6">
-      <h1 className="font-serif text-3xl">Reglas de la casa</h1>
+      <h1 className="font-serif text-4xl">Reglas de la casa</h1>
 
-      <section className="rounded-[1.5rem] bg-white/80 p-5">
+      <section className="rounded-[1.75rem] border border-white/80 bg-white/85 p-6">
         <h2 className="mb-3 font-bold">Horario de reservas</h2>
         <div className="space-y-2">
           {DIAS.map((nombre, d) => {
@@ -72,7 +66,7 @@ export default function ReglasPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 rounded-[1.5rem] bg-white/80 p-5 sm:grid-cols-2">
+      <section className="grid gap-4 rounded-[1.75rem] border border-white/80 bg-white/85 p-6 sm:grid-cols-2">
         {NUMEROS.map(([clave, titulo, ayuda]) => (
           <label key={clave} className="flex flex-col gap-1">
             <span className="font-semibold">{titulo}</span>
@@ -83,12 +77,6 @@ export default function ReglasPage() {
         ))}
       </section>
 
-      <section className="rounded-[1.5rem] bg-white/80 p-5">
-        <h2 className="font-bold">Lo que el agente puede contestar</h2>
-        <p className="mb-3 text-xs text-ink/60">Menú, precios, estacionamiento, mascotas… El agente solo dice lo que esté aquí.</p>
-        <textarea value={info} onChange={(e) => setInfo(e.target.value)} rows={8}
-          className="w-full rounded-2xl border border-ink/10 bg-white p-4 outline-none focus:border-rojo" />
-      </section>
 
       <div className="flex items-center gap-4">
         <button onClick={guardar} className="rounded-full bg-rojo px-6 py-3 font-bold text-white hover:bg-granate">Guardar</button>
