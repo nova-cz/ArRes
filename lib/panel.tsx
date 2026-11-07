@@ -70,7 +70,7 @@ export function useReglas() {
 }
 
 export function Tarjeta({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <section className={`rounded-[1.75rem] border border-white/80 p-6 shadow-[0_8px_30px_rgba(61,16,21,.06)] ${className}`}>{children}</section>;
+  return <section className={`tarjeta rounded-[1.75rem] border border-white/80 p-6 shadow-[0_8px_30px_rgba(61,16,21,.06)] ${className}`}>{children}</section>;
 }
 
 export function Accion({ children, onClick, principal }: { children: React.ReactNode; onClick: () => void; principal?: boolean }) {
