@@ -101,7 +101,12 @@ function CrearRestaurante({ alCrear }: { alCrear: (r: Restaurante) => void }) {
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     const { data, error } = await supabase.rpc("crear_restaurante", { nombre_restaurante: nombre });
-    if (error) return setError("No se pudo crear. ¿Ya corriste migracion_05_equipo.sql?");
+    if (error) {
+      console.error("crear_restaurante", error);
+      return setError(error.message.includes("Ya tienes")
+        ? "Tu usuario ya pertenece a un restaurante. Recarga la página."
+        : `No se pudo crear: ${error.message}`);
+    }
     const r = { id: data as string, nombre: nombre.trim() };
     try { sessionStorage.setItem("arres-restaurante", JSON.stringify(r)); } catch {}
     alCrear(r);
