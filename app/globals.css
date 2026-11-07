@@ -76,3 +76,12 @@ a, button, input, select, textarea {
 .aparecer > div > *:nth-child(n+5) { animation-delay: .2s; }
 /* Al escribir, el campo se ilumina un poco */
 input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 4px rgba(192,22,26,.08); }
+
+/* Gráficas y tablas que se van llenando */
+@keyframes fila-entra { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@keyframes crecer-alto { from { transform: scaleY(0); } }
+@keyframes crecer-ancho { from { transform: scaleX(0); } }
+.fila-entra { animation: fila-entra .5s cubic-bezier(.2,.7,.2,1) both; }
+.crecer-alto { transform-origin: bottom; animation: crecer-alto .7s cubic-bezier(.2,.7,.2,1) both; }
+.crecer-ancho { transform-origin: left; animation: crecer-ancho .8s cubic-bezier(.2,.7,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .fila-entra, .crecer-alto, .crecer-ancho { animation: none; } }

@@ -5,6 +5,7 @@ import { supabase, hora, dia, type Reserva } from "@/lib/supabase";
 import { Accion, ESTADOS, Tarjeta, useReglas, useReservas, useRestaurante } from "@/lib/panel";
 import NuevaReserva from "@/components/panel/NuevaReserva";
 import ProbarAgente from "@/components/panel/ProbarAgente";
+import Numero from "@/components/panel/Numero";
 
 const minutosDesde = (iso: string) => (Date.now() - new Date(iso).getTime()) / 60000;
 
@@ -87,7 +88,7 @@ export default function Hoy() {
         {tarjetas.map(({ t, e, bg, Icono }) => (
           <Tarjeta key={e} className={bg}>
             <div className="flex items-start justify-between">
-              <div><p className="font-semibold">{t}</p><p className="font-serif text-5xl">{de(e).length}</p></div>
+              <div><p className="font-semibold">{t}</p><p className="font-serif text-5xl"><Numero valor={de(e).length} /></p></div>
               <span className="grid h-16 w-16 place-items-center rounded-full bg-white text-rojo shadow"><Icono size={30} /></span>
             </div>
             <div className="mt-4 space-y-2">

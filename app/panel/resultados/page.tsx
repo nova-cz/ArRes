@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase, TZ } from "@/lib/supabase";
 import { Tarjeta, useRestaurante } from "@/lib/panel";
+import Numero from "@/components/panel/Numero";
 
 type Fila = { canal: string; estado: string; personas: number; inicio: string | null; creado_en: string; motivo_escalada: string };
 const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -72,7 +73,7 @@ export default function Resultados() {
 
       <Tarjeta className="bg-rojo text-white">
         <p className="font-semibold text-white/80">Ventas estimadas de reservas del agente</p>
-        <p className="font-serif text-5xl">${(personasAgente * ticket).toLocaleString("es-MX")}</p>
+        <p className="font-serif text-5xl"><Numero valor={`$${personasAgente * ticket}`} /></p>
         <label className="mt-2 flex items-center gap-2 text-sm text-white/80">
           {personasAgente} personas × ticket promedio de $
           <input type="number" min={0} value={ticket} className="w-24 rounded-full bg-white/20 px-3 py-1 text-white outline-none"
@@ -92,7 +93,7 @@ export default function Resultados() {
           {canales.map((c) => (
             <div key={c.nombre}>
               <div className="mb-1 flex justify-between text-sm"><span>{c.nombre}</span><span className="font-semibold">{c.valor} · {pct(c.valor, validas.length)}%</span></div>
-              <div className="h-2.5 rounded-full bg-ink/5"><div className="h-full rounded-full bg-rojo" style={{ width: `${pct(c.valor, validas.length)}%` }} /></div>
+              <div className="h-2.5 rounded-full bg-ink/5"><div className="crecer-ancho h-full rounded-full bg-rojo" style={{ width: `${pct(c.valor, validas.length)}%` }} /></div>
             </div>
           ))}
           {!canales.length && <p className="text-sm text-ink/45">Todavía no hay reservas en este periodo.</p>}
@@ -106,7 +107,7 @@ function Dato({ titulo, valor, nota }: { titulo: string; valor: number | string;
   return (
     <Tarjeta className="bg-white/85">
       <p className="text-sm font-semibold text-ink/60">{titulo}</p>
-      <p className="font-serif text-5xl">{valor}</p>
+      <p className="font-serif text-5xl"><Numero valor={valor} /></p>
       <p className="mt-1 text-xs text-ink/50">{nota}</p>
     </Tarjeta>
   );
@@ -120,9 +121,9 @@ function Barras({ titulo, subtitulo, datos }: { titulo: string; subtitulo: strin
       <h2 className="text-lg font-bold">{titulo}</h2>
       <p className="text-xs text-ink/50">{subtitulo}{pico?.valor ? ` · más reservas: ${pico.etiqueta}` : ""}</p>
       <div className="mt-5 flex h-40 items-end gap-1.5 border-b border-ink/10">
-        {datos.map((d) => (
+        {datos.map((d, i) => (
           <div key={d.etiqueta} className="group relative flex h-full flex-1 items-end" title={`${d.etiqueta}: ${d.valor} reservas`}>
-            <div className="w-full rounded-t bg-rojo/85 transition-colors group-hover:bg-rojo" style={{ height: `${(d.valor / max) * 100}%`, minHeight: d.valor ? 4 : 0 }} />
+            <div className="crecer-alto w-full rounded-t bg-rojo/85 transition-colors group-hover:bg-rojo" style={{ animationDelay: `${i * 40}ms`, height: `${(d.valor / max) * 100}%`, minHeight: d.valor ? 4 : 0 }} />
             <span className="pointer-events-none absolute -top-6 left-1/2 hidden -translate-x-1/2 rounded bg-ink px-1.5 py-0.5 text-xs text-white group-hover:block">{d.valor}</span>
           </div>
         ))}
