@@ -236,10 +236,13 @@ async def run_bot(
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
-        await guardar_transcripcion(ctx, context)
         await runner.cancel()
 
-    await runner.run()
+    # Se guarda al terminar, cuelgue quien cuelgue (antes se perdía si colgaba el agente).
+    try:
+        await runner.run()
+    finally:
+        await guardar_transcripcion(ctx, context)
 
 
 async def guardar_transcripcion(ctx: Contexto, context: LLMContext) -> None:
