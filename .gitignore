@@ -8,3 +8,4 @@ next-env.d.ts
 # material de trabajo (no es parte de la app)
 imgs/
 *.pdf
+!.env.example
