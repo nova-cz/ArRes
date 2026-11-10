@@ -250,7 +250,11 @@ async def guardar_transcripcion(ctx: Contexto, context: LLMContext) -> None:
     roles = {"user": "cliente", "assistant": "agente"}
     try:
         for m in context.get_messages():
+            if not isinstance(m, dict):  # Gemini mete mensajes internos (p. ej. thought_signature)
+                continue
             rol, texto = roles.get(m.get("role")), m.get("content")
+            if isinstance(texto, list):  # a veces el texto viene en partes
+                texto = " ".join(p.get("text", "") for p in texto if isinstance(p, dict))
             if rol and isinstance(texto, str) and texto.strip():
                 await ctx.almacen.guardar_mensaje(
                     ctx.restaurante.id, ctx.telefono or "desconocido", "llamada", rol, texto
