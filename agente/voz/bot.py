@@ -115,7 +115,9 @@ def servicio_voz(voz: str = ""):
     return DeepgramTTSService(
         api_key=config.env("DEEPGRAM_API_KEY"),
         settings=DeepgramTTSService.Settings(
-            voice=voz or config.env("DEEPGRAM_VOZ", "aura-2-celeste-es")
+            voice=voz or config.env("DEEPGRAM_VOZ", "aura-2-celeste-es"),
+            # 1.0 = normal; 1.1 habla un poco más ágil. Vacío = lo que use Deepgram.
+            speed=float(config.env("VOZ_VELOCIDAD")) if config.env("VOZ_VELOCIDAD") else None,
         ),
     )
 
@@ -176,7 +178,7 @@ async def run_bot(
     # Si el detector cree que la frase quedó a medias, espera como máximo ESPERA_TURNO
     # segundos de silencio (Pipecat trae 3 s, que se siente lento al teléfono).
     detector = LocalSmartTurnAnalyzerV3(
-        params=SmartTurnParams(stop_secs=float(config.env("ESPERA_TURNO", "1.5")))
+        params=SmartTurnParams(stop_secs=float(config.env("ESPERA_TURNO", "1.0")))
     )
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
